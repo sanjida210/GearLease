@@ -6,8 +6,7 @@ class AppColors {
   // Dark Industrial Backgrounds
   static const Color scaffoldBackground = Color(0xFF090D14);
   static const Color surfaceCard = Color(0xFF121927);
-  static const Color surfaceCardElevated = Color(0xFF182234);
-  static const Color cardBorder = Color(0xFF1F293D);
+  static const Color surfaceCardElevated = Color(0xFF1E293B);
 
   // Brand Accents
   static const Color precisionCyan = Color(0xFF0D9488);
@@ -16,7 +15,13 @@ class AppColors {
   static const Color performanceGreen = Color(0xFF10B981);
   static const Color criticalRed = Color(0xFFEF4444);
 
-  // Neutral Typography & Icons
+  // Neutral Borders
+  static const Color neutralBorder = Color(0xFF334155);
+  static const Color cardBorder = Color(0xFF334155);
+
+  // Ledger White / Muted
+  static const Color ledgerWhite = Color(0xFFF8FAFC);
+  static const Color ledgerMuted = Color(0xFF94A3B8);
   static const Color textPrimary = Color(0xFFF8FAFC);
   static const Color textSecondary = Color(0xFF94A3B8);
   static const Color textMuted = Color(0xFF64748B);
