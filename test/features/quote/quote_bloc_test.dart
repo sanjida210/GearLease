@@ -164,6 +164,46 @@ void main() {
     );
 
     blocTest<QuoteBloc, QuoteState>(
+      'emits [QuoteAssetResolving, QuoteAssetResolved, QuoteCalculating, QuoteReady] with fallback calculation when server quote fails during AssetScanned',
+      build: () {
+        when(() => mockGetAssetUseCase('CAT-320D-2024'))
+            .thenAnswer((_) async => Result.success(testAsset));
+        when(() => mockCalculateQuoteUseCase(any()))
+            .thenAnswer((_) async => Result.failure(const ServerFailure('Calculation server error')));
+        return quoteBloc;
+      },
+      act: (bloc) => bloc.add(const AssetScanned('CAT-320D-2024')),
+      expect: () => [
+        QuoteAssetResolving(),
+        const QuoteAssetResolved(testAsset),
+        QuoteCalculating(),
+        isA<QuoteReady>()
+            .having((s) => s.asset, 'asset', testAsset)
+            .having((s) => s.calculation.isOfflineEstimate, 'isOfflineEstimate', isTrue),
+      ],
+    );
+
+    blocTest<QuoteBloc, QuoteState>(
+      'emits [QuoteCalculating, QuoteError] on CalculateQuoteRequested failure',
+      build: () {
+        when(() => mockCalculateQuoteUseCase(any()))
+            .thenAnswer((_) async => Result.failure(const ServerFailure('Recalculation engine timeout')));
+        return quoteBloc;
+      },
+      act: (bloc) => bloc.add(const CalculateQuoteRequested(
+        barcode: 'CAT-320D-2024',
+        vendorOrgId: 'vnd-101',
+        invoiceAmountCents: 24500000,
+        requestedTermMonths: 36,
+        repaymentType: RepaymentStructureType.FIXED_MONTHLY,
+      )),
+      expect: () => [
+        QuoteCalculating(),
+        const QuoteError('Recalculation engine timeout'),
+      ],
+    );
+
+    blocTest<QuoteBloc, QuoteState>(
       'emits QuoteInitial on ResetQuote',
       build: () => quoteBloc,
       seed: () => const QuoteReady(

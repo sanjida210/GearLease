@@ -12,6 +12,8 @@ class SyncBloc extends Bloc<SyncEvent, SyncState> {
     on<SyncWatchStarted>(_onWatchStarted);
     on<SyncPendingCountUpdated>(_onPendingCountUpdated);
     on<SyncTriggered>(_onSyncTriggered);
+    on<EnqueueSyncItem>(_onEnqueueSyncItem);
+    on<SyncConnectivityRestored>(_onConnectivityRestored);
   }
 
   Future<void> _onWatchStarted(
@@ -37,6 +39,25 @@ class SyncBloc extends Bloc<SyncEvent, SyncState> {
   ) async {
     emit(SyncRunning(state.pendingCount));
     await syncRepository.syncAllPending();
+    final updatedCount = await syncRepository.getPendingCount();
+    emit(SyncIdle(updatedCount));
+  }
+
+  Future<void> _onEnqueueSyncItem(
+    EnqueueSyncItem event,
+    Emitter<SyncState> emit,
+  ) async {
+    await syncRepository.enqueueRequest(event.item);
+    final count = await syncRepository.getPendingCount();
+    emit(SyncIdle(count));
+  }
+
+  Future<void> _onConnectivityRestored(
+    SyncConnectivityRestored event,
+    Emitter<SyncState> emit,
+  ) async {
+    emit(SyncRunning(state.pendingCount));
+    await syncRepository.processSyncQueue();
     final updatedCount = await syncRepository.getPendingCount();
     emit(SyncIdle(updatedCount));
   }

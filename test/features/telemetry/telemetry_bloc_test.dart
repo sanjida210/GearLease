@@ -118,6 +118,38 @@ void main() {
     );
 
     blocTest<TelemetryBloc, TelemetryState>(
+      'ingests rapid incoming telemetry stream updates and maintains rolling history buffer',
+      build: () => telemetryBloc,
+      seed: () => TelemetryLive(
+        testTelemetry,
+        [testAlert],
+        [testTelemetry],
+      ),
+      act: (bloc) {
+        for (int i = 1; i <= 5; i++) {
+          bloc.add(TelemetryUpdated(MachineTelemetry(
+            assetId: 'CAT-320D',
+            machineName: 'CAT 320D Hydraulic Excavator',
+            category: 'Heavy Equipment',
+            runningHours: 1450.0 + i,
+            temperatureCelsius: 80.0 + i,
+            motorRpm: 1900.0 + (i * 10),
+            status: MachineStatus.optimal,
+            currentBillingCents: 145000,
+            billingType: 'Revenue-Indexed',
+            timestamp: DateTime.parse('2026-11-08T12:00:0${i}Z'),
+          )));
+        }
+      },
+      expect: () => [
+        for (int i = 1; i <= 5; i++)
+          isA<TelemetryLive>()
+              .having((s) => s.data.runningHours, 'runningHours', 1450.0 + i)
+              .having((s) => s.history.length, 'history.length', 1 + i),
+      ],
+    );
+
+    blocTest<TelemetryBloc, TelemetryState>(
       'AcknowledgeAlert removes acknowledged alert from active alerts list',
       build: () => telemetryBloc,
       seed: () => TelemetryLive(

@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import '../../domain/entities/sync_item.dart';
 
 abstract class SyncEvent extends Equatable {
   const SyncEvent();
@@ -19,3 +20,14 @@ class SyncPendingCountUpdated extends SyncEvent {
 }
 
 class SyncTriggered extends SyncEvent {}
+
+class EnqueueSyncItem extends SyncEvent {
+  final SyncItem item;
+
+  const EnqueueSyncItem(this.item);
+
+  @override
+  List<Object?> get props => [item];
+}
+
+class SyncConnectivityRestored extends SyncEvent {}
