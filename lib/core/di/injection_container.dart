@@ -29,6 +29,7 @@ import '../../features/telemetry/domain/repositories/telemetry_repository.dart';
 import '../../features/telemetry/presentation/bloc/telemetry_bloc.dart';
 import '../../features/offline_sync/data/datasources/sync_local_datasource.dart';
 import '../../features/offline_sync/data/repositories/sync_repository_impl.dart';
+import '../../features/offline_sync/data/workers/background_sync_worker.dart';
 import '../../features/offline_sync/domain/repositories/sync_repository.dart';
 import '../../features/offline_sync/presentation/bloc/sync_bloc.dart';
 import '../../features/gear_relay/data/repositories/gear_relay_repository_impl.dart';
@@ -243,6 +244,11 @@ void initOfflineSyncDependencies() {
         apiClient: sl<ApiClient>(),
         networkInfo: sl<NetworkInfo>(),
       ),
+    );
+  }
+  if (!sl.isRegistered<BackgroundSyncWorker>()) {
+    sl.registerLazySingleton<BackgroundSyncWorker>(
+      () => BackgroundSyncWorker(),
     );
   }
   if (!sl.isRegistered<SyncBloc>()) {

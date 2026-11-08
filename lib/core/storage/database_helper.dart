@@ -100,8 +100,26 @@ class DatabaseHelper {
     final db = await database;
     return await db.query(
       tableSyncQueue,
-      where: 'status = ?',
-      whereArgs: ['PENDING'],
+      where: 'status IN (?, ?)',
+      whereArgs: ['PENDING', 'QUEUED'],
+      orderBy: 'created_at ASC',
+    );
+  }
+
+  Future<Map<String, dynamic>?> getSyncQueueItemById(String id) async {
+    final db = await database;
+    final results = await db.query(
+      tableSyncQueue,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    return results.isNotEmpty ? results.first : null;
+  }
+
+  Future<List<Map<String, dynamic>>> getAllSyncQueueItems() async {
+    final db = await database;
+    return await db.query(
+      tableSyncQueue,
       orderBy: 'created_at ASC',
     );
   }
@@ -110,6 +128,7 @@ class DatabaseHelper {
     String id,
     String status, {
     int? retryCount,
+    String? errorMessage,
   }) async {
     final db = await database;
     final values = <String, dynamic>{'status': status};
@@ -121,6 +140,24 @@ class DatabaseHelper {
       values,
       where: 'id = ?',
       whereArgs: [id],
+    );
+  }
+
+  Future<int> deleteSyncQueueItem(String id) async {
+    final db = await database;
+    return await db.delete(
+      tableSyncQueue,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<int> clearCompletedSyncItems() async {
+    final db = await database;
+    return await db.delete(
+      tableSyncQueue,
+      where: 'status IN (?, ?)',
+      whereArgs: ['SYNCED', 'COMPLETED'],
     );
   }
 
