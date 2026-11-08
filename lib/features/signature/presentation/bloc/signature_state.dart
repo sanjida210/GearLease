@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import '../../domain/entities/mobile_sign_event.dart';
+import '../../domain/entities/signature_payload_bundle.dart';
 
 abstract class SignatureState extends Equatable {
   const SignatureState();
@@ -23,11 +24,12 @@ class SignatureSubmitting extends SignatureState {}
 
 class SignatureSuccess extends SignatureState {
   final MobileSignEvent signEvent;
+  final SignaturePayloadBundle? payloadBundle;
 
-  const SignatureSuccess(this.signEvent);
+  const SignatureSuccess(this.signEvent, {this.payloadBundle});
 
   @override
-  List<Object?> get props => [signEvent];
+  List<Object?> get props => [signEvent, payloadBundle];
 }
 
 class SignatureFailureState extends SignatureState {

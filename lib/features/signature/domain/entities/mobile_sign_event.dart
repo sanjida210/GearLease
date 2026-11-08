@@ -10,6 +10,8 @@ class MobileSignEvent extends Equatable {
   final double? gpsLatitude;
   final double? gpsLongitude;
   final DateTime signedAt;
+  final String? auditHash;
+  final Map<String, dynamic>? metadata;
 
   const MobileSignEvent({
     required this.id,
@@ -21,6 +23,8 @@ class MobileSignEvent extends Equatable {
     this.gpsLatitude,
     this.gpsLongitude,
     required this.signedAt,
+    this.auditHash,
+    this.metadata,
   });
 
   @override
@@ -34,5 +38,7 @@ class MobileSignEvent extends Equatable {
         gpsLatitude,
         gpsLongitude,
         signedAt,
+        auditHash,
+        metadata,
       ];
 }

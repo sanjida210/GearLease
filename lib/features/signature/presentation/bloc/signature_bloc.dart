@@ -55,11 +55,13 @@ class SignatureBloc extends Bloc<SignatureEvent, SignatureState> {
       gpsLatitude: 37.7749,
       gpsLongitude: -122.4194,
       signedAt: DateTime.now(),
+      auditHash: event.payloadBundle?.hash,
+      metadata: event.payloadBundle?.metadata,
     );
 
     final result = await signatureRepository.submitSignature(signEvent);
     result.when(
-      success: (data) => emit(SignatureSuccess(data)),
+      success: (data) => emit(SignatureSuccess(data, payloadBundle: event.payloadBundle)),
       failure: (failure) => emit(
         SignatureFailureState('${failure.runtimeType}: ${failure.message}'),
       ),
