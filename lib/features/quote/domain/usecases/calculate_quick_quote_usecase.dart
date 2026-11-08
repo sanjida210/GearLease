@@ -57,6 +57,8 @@ class CalculateQuickQuoteUseCase {
     required int termMonths,
     required RepaymentStructureType repaymentType,
     String quoteId = 'qte_offline_preview',
+    bool isOfflineEstimate = true,
+    String estimateFlag = 'OFFLINE_ESTIMATE',
   }) {
     const annualRate = 0.068;
     const monthlyRate = annualRate / 12.0;
@@ -100,6 +102,8 @@ class CalculateQuickQuoteUseCase {
           : fixedMonthlyCents,
       floorCents: floorCents,
       capCents: capCents,
+      isOfflineEstimate: isOfflineEstimate,
+      estimateFlag: estimateFlag,
       options: options,
       expiresInSeconds: 900,
     );

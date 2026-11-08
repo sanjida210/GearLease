@@ -2,16 +2,19 @@ import '../../domain/entities/hardware_asset.dart';
 
 class HardwareAssetModel extends HardwareAsset {
   const HardwareAssetModel({
-    required super.id,
-    required super.vendorId,
+    super.id,
+    super.vendorId,
     required super.serialNumber,
-    required super.barcodePayload,
+    super.barcodePayload,
     super.barcodeSymbology = 'CODE_128',
     required super.make,
     required super.model,
     required super.category,
-    required super.initialValueCents,
+    super.initialValueCents,
+    super.msrpCents,
     super.iotDeviceIdentifier,
+    super.iotDeviceId,
+    super.specificationsMap = const {},
     super.currentConditionRating = 'GRADE_A',
   });
 
@@ -50,7 +53,10 @@ class HardwareAssetModel extends HardwareAsset {
       'model': model,
       'category': category,
       'initial_value_cents': initialValueCents,
+      'msrp_cents': msrpCents,
       'iot_device_identifier': iotDeviceIdentifier,
+      'iot_device_id': iotDeviceId,
+      'specifications_map': specificationsMap,
       'current_condition_rating': currentConditionRating,
     };
   }

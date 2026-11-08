@@ -125,11 +125,15 @@ void main() {
   });
 
   group('QuoteRemoteDataSource Tests', () {
-    test('lookupAssetByBarcode GETs asset on 200', () async {
+    test('lookupAssetByBarcode GETs asset on 200 from /api/v1/assets/lookup', () async {
       when(() => mockDio.get(
-            '/api/v1/mobile/assets/barcode/GL-ROAST-2026-9811',
+            '/api/v1/assets/lookup',
+            queryParameters: {'code': 'GL-ROAST-2026-9811'},
           )).thenAnswer((_) async => Response(
-            requestOptions: RequestOptions(path: '/api/v1/mobile/assets/barcode/GL-ROAST-2026-9811'),
+            requestOptions: RequestOptions(
+              path: '/api/v1/assets/lookup',
+              queryParameters: {'code': 'GL-ROAST-2026-9811'},
+            ),
             statusCode: 200,
             data: sampleAssetJson,
           ));
@@ -138,6 +142,10 @@ void main() {
 
       expect(result.id, 'ast-001');
       expect(result.serialNumber, 'LM-2026-9811');
+      verify(() => mockDio.get(
+            '/api/v1/assets/lookup',
+            queryParameters: {'code': 'GL-ROAST-2026-9811'},
+          )).called(1);
     });
 
     test('calculateQuickQuote POSTs payload and returns QuoteCalculationModel', () async {
@@ -164,11 +172,14 @@ void main() {
     });
 
     test('throws ServerException on 404/500 API failure', () async {
-      when(() => mockDio.get(any())).thenThrow(
+      when(() => mockDio.get(
+            any(),
+            queryParameters: any(named: 'queryParameters'),
+          )).thenThrow(
         DioException(
-          requestOptions: RequestOptions(path: '/api/v1/mobile/assets/barcode/UNKNOWN'),
+          requestOptions: RequestOptions(path: '/api/v1/assets/lookup'),
           response: Response(
-            requestOptions: RequestOptions(path: '/api/v1/mobile/assets/barcode/UNKNOWN'),
+            requestOptions: RequestOptions(path: '/api/v1/assets/lookup'),
             statusCode: 404,
           ),
           type: DioExceptionType.badResponse,
@@ -209,8 +220,11 @@ void main() {
   group('QuoteRepositoryImpl Integration Tests', () {
     test('getAssetByBarcode fetches remote and caches locally when online', () async {
       when(() => mockNetworkInfo.isConnected).thenAnswer((_) async => true);
-      when(() => mockDio.get(any())).thenAnswer((_) async => Response(
-            requestOptions: RequestOptions(path: '/api/v1/mobile/assets/barcode/GL-ROAST-2026-9811'),
+      when(() => mockDio.get(
+            any(),
+            queryParameters: any(named: 'queryParameters'),
+          )).thenAnswer((_) async => Response(
+            requestOptions: RequestOptions(path: '/api/v1/assets/lookup'),
             statusCode: 200,
             data: sampleAssetJson,
           ));
@@ -243,8 +257,19 @@ void main() {
       expect(result.dataOrNull?.id, 'ast-001');
     });
 
-    test('calculateQuickQuote returns client-side calculation fallback when offline', () async {
+    test('calculateQuickQuote returns approximate pricing with OFFLINE_ESTIMATE flag when offline', () async {
       when(() => mockNetworkInfo.isConnected).thenAnswer((_) async => false);
+      when(() => mockDbHelper.getOfflineAssetByBarcode('GL-ROAST-2026-9811'))
+          .thenAnswer((_) async => {
+                'id': 'ast-001',
+                'serial_number': 'LM-2026-9811',
+                'make': 'La Marzocco',
+                'model': 'Linea PB 3-Group',
+                'msrp_cents': 2450000,
+                'category': 'Commercial Espresso',
+                'payload_json':
+                    '{"id":"ast-001","vendor_id":"vnd-101","serial_number":"LM-2026-9811","barcode_payload":"GL-ROAST-2026-9811","barcode_symbology":"CODE_128","make":"La Marzocco","model":"Linea PB 3-Group","category":"Commercial Espresso","initial_value_cents":2450000,"iot_device_identifier":"IOT-LM-9811","current_condition_rating":"GRADE_A"}',
+              });
 
       final result = await quoteRepository.calculateQuickQuote(
         barcode: 'GL-ROAST-2026-9811',
@@ -258,12 +283,57 @@ void main() {
       expect(result.dataOrNull?.qualificationStatus, QualificationStatus.INSTANT_QUALIFIED);
       expect(result.dataOrNull?.repaymentType, RepaymentStructureType.REVENUE_INDEXED);
       expect(result.dataOrNull?.fixedMonthlyCents, greaterThan(0));
+      expect(result.dataOrNull?.isOfflineEstimate, isTrue);
+      expect(result.dataOrNull?.estimateFlag, 'OFFLINE_ESTIMATE');
+      verify(() => mockDbHelper.getOfflineAssetByBarcode('GL-ROAST-2026-9811')).called(1);
+    });
+
+    test('calculateQuickQuote intercepts network failure, resolves cached asset and returns OFFLINE_ESTIMATE', () async {
+      when(() => mockNetworkInfo.isConnected).thenAnswer((_) async => true);
+      when(() => mockDio.post(any(), data: any(named: 'data'))).thenThrow(
+        DioException(
+          requestOptions: RequestOptions(path: '/api/v1/mobile/quotes/quick-calculate'),
+          error: 'Connection timed out',
+          type: DioExceptionType.connectionTimeout,
+        ),
+      );
+      when(() => mockDbHelper.getOfflineAssetByBarcode('GL-ROAST-2026-9811'))
+          .thenAnswer((_) async => {
+                'id': 'ast-001',
+                'serial_number': 'LM-2026-9811',
+                'make': 'La Marzocco',
+                'model': 'Linea PB 3-Group',
+                'msrp_cents': 2450000,
+                'category': 'Commercial Espresso',
+                'payload_json':
+                    '{"id":"ast-001","vendor_id":"vnd-101","serial_number":"LM-2026-9811","barcode_payload":"GL-ROAST-2026-9811","barcode_symbology":"CODE_128","make":"La Marzocco","model":"Linea PB 3-Group","category":"Commercial Espresso","initial_value_cents":2450000,"iot_device_identifier":"IOT-LM-9811","current_condition_rating":"GRADE_A"}',
+              });
+
+      final result = await quoteRepository.calculateQuickQuote(
+        barcode: 'GL-ROAST-2026-9811',
+        vendorOrgId: 'vnd-101',
+        invoiceAmountCents: 2450000,
+        requestedTermMonths: 36,
+        repaymentType: RepaymentStructureType.REVENUE_INDEXED,
+      );
+
+      expect(result.isSuccess, isTrue);
+      final quote = result.dataOrNull!;
+      expect(quote.isOfflineEstimate, isTrue);
+      expect(quote.estimateFlag, 'OFFLINE_ESTIMATE');
+      verify(() => mockDbHelper.getOfflineAssetByBarcode('GL-ROAST-2026-9811')).called(1);
     });
 
     test('lookupAssetByBarcode delegates to barcode lookup and caches locally', () async {
       when(() => mockNetworkInfo.isConnected).thenAnswer((_) async => true);
-      when(() => mockDio.get(any())).thenAnswer((_) async => Response(
-            requestOptions: RequestOptions(path: '/api/v1/mobile/assets/barcode/GL-ROAST-2026-9811'),
+      when(() => mockDio.get(
+            '/api/v1/assets/lookup',
+            queryParameters: {'code': 'GL-ROAST-2026-9811'},
+          )).thenAnswer((_) async => Response(
+            requestOptions: RequestOptions(
+              path: '/api/v1/assets/lookup',
+              queryParameters: {'code': 'GL-ROAST-2026-9811'},
+            ),
             statusCode: 200,
             data: sampleAssetJson,
           ));
@@ -275,8 +345,19 @@ void main() {
       expect(result.dataOrNull?.serialNumber, 'LM-2026-9811');
     });
 
-    test('calculateDynamicQuote returns dynamic quote calculation', () async {
+    test('calculateDynamicQuote returns dynamic quote calculation with OFFLINE_ESTIMATE when offline', () async {
       when(() => mockNetworkInfo.isConnected).thenAnswer((_) async => false);
+      when(() => mockDbHelper.getOfflineAssetByBarcode('GL-ROAST-2026-9811'))
+          .thenAnswer((_) async => {
+                'id': 'ast-001',
+                'serial_number': 'LM-2026-9811',
+                'make': 'La Marzocco',
+                'model': 'Linea PB 3-Group',
+                'msrp_cents': 2450000,
+                'category': 'Commercial Espresso',
+                'payload_json':
+                    '{"id":"ast-001","vendor_id":"vnd-101","serial_number":"LM-2026-9811","barcode_payload":"GL-ROAST-2026-9811","barcode_symbology":"CODE_128","make":"La Marzocco","model":"Linea PB 3-Group","category":"Commercial Espresso","initial_value_cents":2450000,"iot_device_identifier":"IOT-LM-9811","current_condition_rating":"GRADE_A"}',
+              });
 
       final result = await quoteRepository.calculateDynamicQuote(
         'GL-ROAST-2026-9811',
@@ -288,6 +369,9 @@ void main() {
       expect(result.isSuccess, isTrue);
       expect(result.dataOrNull?.termMonths, 48);
       expect(result.dataOrNull?.pricingType, PricingType.REVENUE_INDEXED);
+      expect(result.dataOrNull?.isOfflineEstimate, isTrue);
+      expect(result.dataOrNull?.estimateFlag, 'OFFLINE_ESTIMATE');
+      verify(() => mockDbHelper.getOfflineAssetByBarcode('GL-ROAST-2026-9811')).called(1);
     });
   });
 }

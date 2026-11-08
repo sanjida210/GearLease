@@ -5,6 +5,7 @@ import '../models/hardware_asset_model.dart';
 abstract class QuoteLocalDataSource {
   Future<void> cacheAsset(HardwareAssetModel asset);
   Future<HardwareAssetModel?> getCachedAssetByBarcode(String barcode);
+  Future<List<HardwareAssetModel>> getAllCachedAssets();
 }
 
 class QuoteLocalDataSourceImpl implements QuoteLocalDataSource {
@@ -33,5 +34,26 @@ class QuoteLocalDataSourceImpl implements QuoteLocalDataSource {
       return HardwareAssetModel.fromJson(json);
     }
     return null;
+  }
+
+  @override
+  Future<List<HardwareAssetModel>> getAllCachedAssets() async {
+    final rows = await databaseHelper.getAllOfflineAssets();
+    return rows.map<HardwareAssetModel>((row) {
+      if (row['payload_json'] != null) {
+        final json = jsonDecode(row['payload_json'] as String) as Map<String, dynamic>;
+        return HardwareAssetModel.fromJson(json);
+      }
+      return HardwareAssetModel(
+        id: row['id'] as String? ?? '',
+        vendorId: '',
+        serialNumber: row['serial_number'] as String? ?? '',
+        barcodePayload: row['serial_number'] as String? ?? '',
+        make: row['make'] as String? ?? '',
+        model: row['model'] as String? ?? '',
+        category: row['category'] as String? ?? '',
+        msrpCents: (row['msrp_cents'] as num?)?.toInt() ?? 0,
+      );
+    }).toList();
   }
 }

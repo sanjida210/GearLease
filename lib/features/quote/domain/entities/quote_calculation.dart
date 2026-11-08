@@ -75,6 +75,9 @@ class QuoteOption extends Equatable {
 }
 
 class QuoteCalculation extends Equatable {
+  static const String flagOfflineEstimate = 'OFFLINE_ESTIMATE';
+  static const String flagLive = 'LIVE';
+
   final String quoteId;
   final QualificationStatus qualificationStatus;
   final PricingType pricingType;
@@ -88,6 +91,8 @@ class QuoteCalculation extends Equatable {
   final int? capCents;
   final String riskTier;
   final int estimatedUnderwriteSeconds;
+  final bool isOfflineEstimate;
+  final String estimateFlag;
   final List<QuoteOption> options;
   final int expiresInSeconds;
 
@@ -107,9 +112,14 @@ class QuoteCalculation extends Equatable {
     this.capCents,
     this.riskTier = 'LOW',
     this.estimatedUnderwriteSeconds = 90,
+    bool? isOfflineEstimate,
+    String? estimateFlag,
     this.options = const [],
     this.expiresInSeconds = 900,
-  })  : monthlyBaseCents = monthlyBaseCents ?? fixedMonthlyCents ?? 0,
+  })  : isOfflineEstimate = isOfflineEstimate ?? (estimateFlag == 'OFFLINE_ESTIMATE'),
+        estimateFlag = estimateFlag ??
+            ((isOfflineEstimate ?? false) ? 'OFFLINE_ESTIMATE' : 'LIVE'),
+        monthlyBaseCents = monthlyBaseCents ?? fixedMonthlyCents ?? 0,
         revenueSharePercent = revenueSharePercent ?? revenueSharePct,
         pricingType = pricingType ??
             (repaymentType == RepaymentStructureType.REVENUE_INDEXED
@@ -142,6 +152,8 @@ class QuoteCalculation extends Equatable {
         capCents,
         riskTier,
         estimatedUnderwriteSeconds,
+        isOfflineEstimate,
+        estimateFlag,
         options,
         expiresInSeconds,
       ];

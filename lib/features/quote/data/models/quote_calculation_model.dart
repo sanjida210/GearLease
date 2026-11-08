@@ -55,6 +55,8 @@ class QuoteCalculationModel extends QuoteCalculation {
     super.estimatedMonthlyCents,
     super.floorCents,
     super.capCents,
+    super.isOfflineEstimate,
+    super.estimateFlag,
     super.options = const [],
     super.expiresInSeconds = 900,
   });
@@ -90,6 +92,11 @@ class QuoteCalculationModel extends QuoteCalculation {
           .toList();
     }
 
+    final isOffline = json['is_offline_estimate'] as bool? ??
+        (json['estimate_flag'] == 'OFFLINE_ESTIMATE');
+    final estimateFlag = json['estimate_flag'] as String? ??
+        (isOffline ? 'OFFLINE_ESTIMATE' : 'LIVE');
+
     return QuoteCalculationModel(
       quoteId: json['quote_id'] as String? ?? json['quoteId'] as String? ?? '',
       qualificationStatus: status,
@@ -105,6 +112,8 @@ class QuoteCalculationModel extends QuoteCalculation {
       estimatedMonthlyCents: (json['estimated_monthly_cents'] as num?)?.toInt(),
       floorCents: (json['floor_cents'] as num?)?.toInt(),
       capCents: (json['cap_cents'] as num?)?.toInt(),
+      isOfflineEstimate: isOffline,
+      estimateFlag: estimateFlag,
       options: options,
       expiresInSeconds: (json['expires_in_seconds'] as num?)?.toInt() ?? 900,
     );
@@ -122,6 +131,8 @@ class QuoteCalculationModel extends QuoteCalculation {
       'estimated_monthly_cents': estimatedMonthlyCents,
       'floor_cents': floorCents,
       'cap_cents': capCents,
+      'is_offline_estimate': isOfflineEstimate,
+      'estimate_flag': estimateFlag,
       'options': options
           .map((opt) => opt is QuoteOptionModel
               ? opt.toJson()

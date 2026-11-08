@@ -68,7 +68,7 @@ class QuoteRepositoryImpl implements QuoteRepository {
     return calculateQuickQuote(
       barcode: assetId,
       vendorOrgId: 'default-org',
-      invoiceAmountCents: 2450000,
+      invoiceAmountCents: 0,
       requestedTermMonths: termMonths,
       repaymentType: pricingType.toRepaymentStructureType(),
       businessEin: businessEin.toString(),
@@ -98,20 +98,34 @@ class QuoteRepositoryImpl implements QuoteRepository {
         );
         return Result.success(quote);
       } catch (_) {
-        // High-availability showroom floor fallback: calculate offline
+        // Intercept network failure: attempt asset resolution against local SQLite cache
+        final cachedAsset = await localDataSource.getCachedAssetByBarcode(barcode);
+        final effectiveAmount = (invoiceAmountCents > 0)
+            ? invoiceAmountCents
+            : (cachedAsset?.initialValueCents ?? 2450000);
+
         final fallback = CalculateQuickQuoteUseCase.calculateClientSideFallback(
-          invoiceAmountCents: invoiceAmountCents,
+          invoiceAmountCents: effectiveAmount,
           termMonths: requestedTermMonths,
           repaymentType: repaymentType,
+          isOfflineEstimate: true,
+          estimateFlag: QuoteCalculation.flagOfflineEstimate,
         );
         return Result.success(fallback);
       }
     } else {
-      // Offline instant underwriting calculator fallback
+      // Offline: attempt asset resolution against local SQLite cache
+      final cachedAsset = await localDataSource.getCachedAssetByBarcode(barcode);
+      final effectiveAmount = (invoiceAmountCents > 0)
+          ? invoiceAmountCents
+          : (cachedAsset?.initialValueCents ?? 2450000);
+
       final fallback = CalculateQuickQuoteUseCase.calculateClientSideFallback(
-        invoiceAmountCents: invoiceAmountCents,
+        invoiceAmountCents: effectiveAmount,
         termMonths: requestedTermMonths,
         repaymentType: repaymentType,
+        isOfflineEstimate: true,
+        estimateFlag: QuoteCalculation.flagOfflineEstimate,
       );
       return Result.success(fallback);
     }

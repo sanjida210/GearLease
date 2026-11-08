@@ -27,7 +27,8 @@ class QuoteRemoteDataSourceImpl implements QuoteRemoteDataSource {
   Future<HardwareAssetModel> lookupAssetByBarcode(String barcode) async {
     try {
       final response = await apiClient.dio.get(
-        '/api/v1/mobile/assets/barcode/$barcode',
+        '/api/v1/assets/lookup',
+        queryParameters: {'code': barcode},
       );
 
       if (response.statusCode == 200 && response.data != null) {
