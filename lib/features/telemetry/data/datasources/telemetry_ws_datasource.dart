@@ -14,6 +14,7 @@ typedef WebSocketChannelFactory = WebSocketChannel Function(Uri uri);
 class TelemetryWsDataSourceImpl implements TelemetryWsDataSource {
   final String wsBaseUrl;
   final WebSocketChannelFactory? channelFactory;
+  final bool enableHeartbeat;
   Timer? _heartbeatTimer;
   final Map<String, WebSocketChannel> _activeChannels = {};
   final Map<String, StreamController<MachineTelemetryModel>> _machineControllers = {};
@@ -22,19 +23,25 @@ class TelemetryWsDataSourceImpl implements TelemetryWsDataSource {
   TelemetryWsDataSourceImpl({
     this.wsBaseUrl = 'wss://api.gearlease.io/ws/telemetry',
     this.channelFactory,
-  }) {
-    _startHeartbeat();
-  }
+    this.enableHeartbeat = true,
+  });
 
-  void _startHeartbeat() {
-    _heartbeatTimer?.cancel();
-    _heartbeatTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      for (final channel in _activeChannels.values) {
-        try {
-          channel.sink.add(jsonEncode({'type': 'PING', 'timestamp': DateTime.now().toIso8601String()}));
-        } catch (_) {}
-      }
-    });
+  void _startHeartbeatIfNeeded() {
+    if (!enableHeartbeat) return;
+    if (_heartbeatTimer == null || !_heartbeatTimer!.isActive) {
+      _heartbeatTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+        if (_activeChannels.isEmpty) {
+          _heartbeatTimer?.cancel();
+          _heartbeatTimer = null;
+          return;
+        }
+        for (final channel in _activeChannels.values) {
+          try {
+            channel.sink.add(jsonEncode({'type': 'PING', 'timestamp': DateTime.now().toIso8601String()}));
+          } catch (_) {}
+        }
+      });
+    }
   }
 
   @override
@@ -59,6 +66,7 @@ class TelemetryWsDataSourceImpl implements TelemetryWsDataSource {
           : WebSocketChannel.connect(uri);
 
       _activeChannels[assetId] = channel;
+      _startHeartbeatIfNeeded();
 
       channel.ready.catchError((err) {
         _emitFallbackMachine(assetId, controller);
@@ -105,6 +113,7 @@ class TelemetryWsDataSourceImpl implements TelemetryWsDataSource {
           : WebSocketChannel.connect(uri);
 
       _activeChannels['fleet'] = channel;
+      _startHeartbeatIfNeeded();
 
       channel.ready.catchError((err) {
         _emitFallbackFleet(controller);

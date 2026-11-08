@@ -38,7 +38,7 @@ import '../../features/gear_relay/presentation/bloc/gear_relay_bloc.dart';
 final sl = GetIt.instance;
 
 /// Initializes all application-wide singletons, database helpers, and feature dependencies.
-Future<void> initDependencies() async {
+Future<void> initDependencies({bool enableHeartbeat = true}) async {
   // 1. External & Platform Services
   final sharedPreferences = await SharedPreferences.getInstance();
   if (!sl.isRegistered<SharedPreferences>()) {
@@ -83,7 +83,7 @@ Future<void> initDependencies() async {
   initQuoteDependencies();
   initScannerDependencies();
   initSignatureDependencies();
-  initTelemetryDependencies();
+  initTelemetryDependencies(enableHeartbeat: enableHeartbeat);
   initOfflineSyncDependencies();
   initGearRelayDependencies();
 }
@@ -190,10 +190,11 @@ void initSignatureDependencies() {
 }
 
 /// Feature DI: Real-Time IoT Machine Telemetry
-void initTelemetryDependencies() {
+void initTelemetryDependencies({bool enableHeartbeat = true}) {
   if (!sl.isRegistered<TelemetryWsDataSource>()) {
     sl.registerLazySingleton<TelemetryWsDataSource>(
-      () => TelemetryWsDataSourceImpl(),
+      () => TelemetryWsDataSourceImpl(enableHeartbeat: enableHeartbeat),
+      dispose: (ds) => ds.dispose(),
     );
   }
   if (!sl.isRegistered<TelemetryRepository>()) {
@@ -264,6 +265,9 @@ void initGearRelayDependencies() {
 
 /// Test Hook: Resets GetIt instance for clean test execution
 Future<void> resetDependencies() async {
+  if (sl.isRegistered<TelemetryWsDataSource>()) {
+    sl<TelemetryWsDataSource>().dispose();
+  }
   await sl.reset();
 }
 
