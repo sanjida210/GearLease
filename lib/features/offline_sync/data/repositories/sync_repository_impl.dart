@@ -33,15 +33,21 @@ class SyncRepositoryImpl implements SyncRepository {
   }
 
   @override
-  Future<void> enqueueSyncItem(SyncItem item) async {
+  Future<void> enqueueRequest(SyncItem item) async {
     await localDataSource.enqueueItem(item);
     await _refreshPendingCount();
   }
 
   @override
-  Future<List<SyncItem>> getPendingItems() {
+  Future<void> enqueueSyncItem(SyncItem item) => enqueueRequest(item);
+
+  @override
+  Future<List<SyncItem>> getPendingQueue() {
     return localDataSource.getPendingItems();
   }
+
+  @override
+  Future<List<SyncItem>> getPendingItems() => getPendingQueue();
 
   @override
   Future<int> getPendingCount() {
@@ -56,11 +62,11 @@ class SyncRepositoryImpl implements SyncRepository {
   }
 
   @override
-  Future<void> syncAllPending() async {
+  Future<void> processSyncQueue() async {
     final isOnline = await networkInfo.isConnected;
     if (!isOnline) return;
 
-    final pending = await localDataSource.getPendingItems();
+    final pending = await getPendingQueue();
     for (final item in pending) {
       await localDataSource.updateItemStatus(item.id, SyncStatus.syncing);
 
@@ -72,15 +78,26 @@ class SyncRepositoryImpl implements SyncRepository {
           data = item.payloadJson;
         }
 
-        final response = await apiClient.dio.post(
-          item.actionType,
-          data: data,
-          options: Options(
-            headers: {
-              'Idempotency-Key': item.idempotencyKey,
-            },
-          ),
-        );
+        final response = item.httpMethod.toUpperCase() == 'POST'
+            ? await apiClient.dio.post(
+                item.endpoint,
+                data: data,
+                options: Options(
+                  headers: {
+                    'Idempotency-Key': item.idempotencyKey,
+                  },
+                ),
+              )
+            : await apiClient.dio.request(
+                item.endpoint,
+                data: data,
+                options: Options(
+                  method: item.httpMethod,
+                  headers: {
+                    'Idempotency-Key': item.idempotencyKey,
+                  },
+                ),
+              );
 
         if (response.statusCode == 200 || response.statusCode == 201) {
           await localDataSource.updateItemStatus(item.id, SyncStatus.synced);
@@ -102,6 +119,9 @@ class SyncRepositoryImpl implements SyncRepository {
 
     await _refreshPendingCount();
   }
+
+  @override
+  Future<void> syncAllPending() => processSyncQueue();
 
   void dispose() {
     _pendingCountController.close();
