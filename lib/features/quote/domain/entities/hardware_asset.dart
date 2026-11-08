@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 
 class HardwareAsset extends Equatable {
   final String id;
+  final String vendorId;
   final String serialNumber;
   final String barcodePayload;
   final String barcodeSymbology;
@@ -10,10 +11,11 @@ class HardwareAsset extends Equatable {
   final String category;
   final int initialValueCents;
   final String? iotDeviceIdentifier;
-  final String conditionRating;
+  final String currentConditionRating;
 
   const HardwareAsset({
     required this.id,
+    required this.vendorId,
     required this.serialNumber,
     required this.barcodePayload,
     this.barcodeSymbology = 'CODE_128',
@@ -22,7 +24,7 @@ class HardwareAsset extends Equatable {
     required this.category,
     required this.initialValueCents,
     this.iotDeviceIdentifier,
-    this.conditionRating = 'GRADE_A',
+    this.currentConditionRating = 'GRADE_A',
   });
 
   String get displayName => '$make $model';
@@ -30,6 +32,7 @@ class HardwareAsset extends Equatable {
   @override
   List<Object?> get props => [
         id,
+        vendorId,
         serialNumber,
         barcodePayload,
         barcodeSymbology,
@@ -38,6 +41,6 @@ class HardwareAsset extends Equatable {
         category,
         initialValueCents,
         iotDeviceIdentifier,
-        conditionRating,
+        currentConditionRating,
       ];
 }

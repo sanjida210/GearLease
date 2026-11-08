@@ -11,6 +11,9 @@ import '../../features/auth/data/datasources/biometric_local_datasource.dart';
 import '../../features/auth/data/repositories/auth_repository_impl.dart';
 import '../../features/auth/domain/repositories/auth_repository.dart';
 import '../../features/auth/presentation/bloc/auth_bloc.dart';
+import '../../features/quote/domain/repositories/quote_repository.dart';
+import '../../features/quote/domain/usecases/calculate_quick_quote_usecase.dart';
+import '../../features/quote/domain/usecases/get_asset_by_barcode_usecase.dart';
 
 final sl = GetIt.instance;
 
@@ -94,7 +97,18 @@ void initAuthDependencies() {
 
 /// Feature DI: Underwriting & Quick Quote Calculator
 void initQuoteDependencies() {
-  // Quote calculations & term sliders
+  if (sl.isRegistered<QuoteRepository>()) {
+    if (!sl.isRegistered<GetAssetByBarcodeUseCase>()) {
+      sl.registerLazySingleton<GetAssetByBarcodeUseCase>(
+        () => GetAssetByBarcodeUseCase(sl<QuoteRepository>()),
+      );
+    }
+    if (!sl.isRegistered<CalculateQuickQuoteUseCase>()) {
+      sl.registerLazySingleton<CalculateQuickQuoteUseCase>(
+        () => CalculateQuickQuoteUseCase(sl<QuoteRepository>()),
+      );
+    }
+  }
 }
 
 /// Feature DI: Native Optical & Barcode Scanner
