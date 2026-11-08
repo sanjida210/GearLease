@@ -13,6 +13,8 @@ class SecureStorageService {
 
   static const String _keyToken = 'auth_token';
   static const String _keyRefreshToken = 'refresh_token';
+  static const String _keyActiveTenantId = 'active_tenant_id';
+  static const String _keyEncryptionPasskey = 'encryption_passkey';
   static const String _keyDeviceUuid = 'device_uuid';
   static const String _keyBiometricEnabled = 'biometric_enabled';
 
@@ -30,6 +32,22 @@ class SecureStorageService {
 
   Future<String?> getRefreshToken() async {
     return await _storage.read(key: _keyRefreshToken);
+  }
+
+  Future<void> saveActiveTenantId(String tenantId) async {
+    await _storage.write(key: _keyActiveTenantId, value: tenantId);
+  }
+
+  Future<String?> getActiveTenantId() async {
+    return await _storage.read(key: _keyActiveTenantId);
+  }
+
+  Future<void> saveEncryptionPasskey(String passkey) async {
+    await _storage.write(key: _keyEncryptionPasskey, value: passkey);
+  }
+
+  Future<String?> getEncryptionPasskey() async {
+    return await _storage.read(key: _keyEncryptionPasskey);
   }
 
   Future<String> getOrCreateDeviceUuid() async {
@@ -53,5 +71,6 @@ class SecureStorageService {
   Future<void> clearAuth() async {
     await _storage.delete(key: _keyToken);
     await _storage.delete(key: _keyRefreshToken);
+    await _storage.delete(key: _keyActiveTenantId);
   }
 }

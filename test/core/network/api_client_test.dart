@@ -86,8 +86,7 @@ void main() {
   group('AuthInterceptor Tests', () {
     test('clears auth token and calls onSessionTerminated on 401 response', () async {
       bool sessionTerminated = false;
-      when(() => mockStorage.delete(key: 'auth_token')).thenAnswer((_) async {});
-      when(() => mockStorage.delete(key: 'refresh_token')).thenAnswer((_) async {});
+      when(() => mockStorage.delete(key: any(named: 'key'))).thenAnswer((_) async {});
 
       final authInterceptor = AuthInterceptor(
         storageService: secureStorageService,

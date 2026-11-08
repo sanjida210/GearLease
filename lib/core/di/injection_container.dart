@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../network/api_client.dart';
 import '../network/network_info.dart';
+import '../storage/database_helper.dart';
 import '../storage/secure_storage_service.dart';
 
 final sl = GetIt.instance;
@@ -23,6 +24,9 @@ Future<void> initDependencies() async {
   // Core Storage & Network
   sl.registerLazySingleton<SecureStorageService>(
     () => SecureStorageService(storage: sl<FlutterSecureStorage>()),
+  );
+  sl.registerLazySingleton<DatabaseHelper>(
+    () => DatabaseHelper.instance,
   );
   sl.registerLazySingleton<NetworkInfo>(
     () => NetworkInfoImpl(sl<Connectivity>()),
