@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:uuid/uuid.dart';
+import '../../../../core/error/failures.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/network_info.dart';
 import '../../../../core/storage/database_helper.dart';
+import '../../../../core/utils/result.dart';
 import '../../domain/entities/machine_telemetry.dart';
+import '../../domain/entities/predictive_alert.dart';
 import '../../domain/repositories/telemetry_repository.dart';
 import '../datasources/telemetry_ws_datasource.dart';
 import '../models/machine_telemetry_model.dart';
@@ -44,6 +47,98 @@ class TelemetryRepositoryImpl implements TelemetryRepository {
   @override
   Stream<List<MachineTelemetry>> watchFleetTelemetry() {
     return wsDataSource.streamFleetTelemetry();
+  }
+
+  @override
+  Future<Result<List<PredictiveAlert>, Failure>> getActiveAlerts(String assetId) async {
+    final isOnline = await networkInfo.isConnected;
+    if (isOnline) {
+      try {
+        final response = await apiClient.dio.get('/api/v1/telemetry/assets/$assetId/alerts');
+        if (response.statusCode == 200 && response.data is List) {
+          final list = (response.data as List).map((item) {
+            final map = item as Map<String, dynamic>;
+            return PredictiveAlert(
+              alertId: map['alert_id'] as String? ?? 'alt-001',
+              assetId: assetId,
+              severity: AlertSeverity.fromString(map['severity'] as String?),
+              title: map['title'] as String? ?? 'Telemetry Warning',
+              description: map['description'] as String? ?? 'Telemetry threshold alert',
+              suggestedAction: map['suggested_action'] as String? ?? 'Inspect machine status',
+              timestamp: map['timestamp'] != null
+                  ? DateTime.tryParse(map['timestamp'] as String) ?? DateTime.now()
+                  : DateTime.now(),
+            );
+          }).toList();
+          return Result.success(list);
+        }
+      } catch (_) {
+        // Fallback to local evaluation
+      }
+    }
+
+    // Local / cached alert evaluation fallback
+    try {
+      final cached = await databaseHelper.getTelemetry(assetId);
+      final temp = (cached?['temp_celsius'] as num? ?? 0.0).toDouble();
+      final alerts = <PredictiveAlert>[];
+      if (temp >= 75.0) {
+        alerts.add(PredictiveAlert(
+          alertId: 'alt-$assetId-temp',
+          assetId: assetId,
+          severity: temp >= 85.0 ? AlertSeverity.CRITICAL : AlertSeverity.HIGH,
+          title: 'High Thermal Drift Detected',
+          description: 'Machine temperature ($temp°C) exceeds optimal threshold.',
+          suggestedAction: 'Schedule precision lubrication or check cooling system.',
+          timestamp: DateTime.now(),
+        ));
+      }
+      return Result.success(alerts);
+    } catch (e) {
+      return Result.success(const []);
+    }
+  }
+
+  @override
+  Future<Result<void, Failure>> requestMaintenanceService(String assetId, String alertId) async {
+    final isOnline = await networkInfo.isConnected;
+    if (isOnline) {
+      try {
+        final response = await apiClient.dio.post(
+          '/api/v1/telemetry/assets/$assetId/maintenance-request',
+          data: {
+            'asset_id': assetId,
+            'alert_id': alertId,
+            'requested_at': DateTime.now().toIso8601String(),
+          },
+        );
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          return Result.success(null);
+        }
+      } catch (_) {
+        await _enqueueMaintenanceRequest(assetId, alertId);
+        return Result.success(null);
+      }
+    }
+    await _enqueueMaintenanceRequest(assetId, alertId);
+    return Result.success(null);
+  }
+
+  Future<void> _enqueueMaintenanceRequest(String assetId, String alertId) async {
+    await databaseHelper.insertSyncQueueItem({
+      'id': const Uuid().v4(),
+      'endpoint': '/api/v1/telemetry/assets/$assetId/maintenance-request',
+      'method': 'POST',
+      'payload': jsonEncode({
+        'asset_id': assetId,
+        'alert_id': alertId,
+        'requested_at': DateTime.now().toIso8601String(),
+      }),
+      'status': 'PENDING',
+      'retry_count': 0,
+      'created_at': DateTime.now().millisecondsSinceEpoch,
+      'idempotency_key': const Uuid().v4(),
+    });
   }
 
   @override
