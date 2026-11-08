@@ -18,6 +18,7 @@ import '../../features/quote/domain/repositories/quote_repository.dart';
 import '../../features/quote/domain/usecases/calculate_quick_quote_usecase.dart';
 import '../../features/quote/domain/usecases/get_asset_by_barcode_usecase.dart';
 import '../../features/quote/presentation/bloc/quote_bloc.dart';
+import '../../features/scanner/presentation/bloc/scanner_bloc.dart';
 
 final sl = GetIt.instance;
 
@@ -142,7 +143,13 @@ void initQuoteDependencies() {
 
 /// Feature DI: Native Optical & Barcode Scanner
 void initScannerDependencies() {
-  // Camera & MLKit barcode lookup services
+  if (!sl.isRegistered<ScannerBloc>()) {
+    sl.registerFactory<ScannerBloc>(
+      () => ScannerBloc(
+        getAssetByBarcodeUseCase: sl<GetAssetByBarcodeUseCase>(),
+      ),
+    );
+  }
 }
 
 /// Feature DI: Real-Time IoT Machine Telemetry
