@@ -156,6 +156,26 @@ class DatabaseHelper {
     return results.isNotEmpty ? results.first : null;
   }
 
+  Future<Map<String, dynamic>?> getOfflineAssetByBarcode(String barcode) async {
+    final db = await database;
+    final results = await db.query(
+      tableOfflineAssets,
+      where: 'serial_number = ?',
+      whereArgs: [barcode],
+      limit: 1,
+    );
+    if (results.isNotEmpty) return results.first;
+
+    final all = await db.query(tableOfflineAssets);
+    for (final row in all) {
+      final payload = row['payload_json'] as String?;
+      if (payload != null && payload.contains(barcode)) {
+        return row;
+      }
+    }
+    return null;
+  }
+
   Future<List<Map<String, dynamic>>> getAllOfflineAssets() async {
     final db = await database;
     return await db.query(tableOfflineAssets);

@@ -11,6 +11,9 @@ import '../../features/auth/data/datasources/biometric_local_datasource.dart';
 import '../../features/auth/data/repositories/auth_repository_impl.dart';
 import '../../features/auth/domain/repositories/auth_repository.dart';
 import '../../features/auth/presentation/bloc/auth_bloc.dart';
+import '../../features/quote/data/datasources/quote_local_datasource.dart';
+import '../../features/quote/data/datasources/quote_remote_datasource.dart';
+import '../../features/quote/data/repositories/quote_repository_impl.dart';
 import '../../features/quote/domain/repositories/quote_repository.dart';
 import '../../features/quote/domain/usecases/calculate_quick_quote_usecase.dart';
 import '../../features/quote/domain/usecases/get_asset_by_barcode_usecase.dart';
@@ -97,17 +100,34 @@ void initAuthDependencies() {
 
 /// Feature DI: Underwriting & Quick Quote Calculator
 void initQuoteDependencies() {
-  if (sl.isRegistered<QuoteRepository>()) {
-    if (!sl.isRegistered<GetAssetByBarcodeUseCase>()) {
-      sl.registerLazySingleton<GetAssetByBarcodeUseCase>(
-        () => GetAssetByBarcodeUseCase(sl<QuoteRepository>()),
-      );
-    }
-    if (!sl.isRegistered<CalculateQuickQuoteUseCase>()) {
-      sl.registerLazySingleton<CalculateQuickQuoteUseCase>(
-        () => CalculateQuickQuoteUseCase(sl<QuoteRepository>()),
-      );
-    }
+  if (!sl.isRegistered<QuoteRemoteDataSource>()) {
+    sl.registerLazySingleton<QuoteRemoteDataSource>(
+      () => QuoteRemoteDataSourceImpl(apiClient: sl<ApiClient>()),
+    );
+  }
+  if (!sl.isRegistered<QuoteLocalDataSource>()) {
+    sl.registerLazySingleton<QuoteLocalDataSource>(
+      () => QuoteLocalDataSourceImpl(databaseHelper: sl<DatabaseHelper>()),
+    );
+  }
+  if (!sl.isRegistered<QuoteRepository>()) {
+    sl.registerLazySingleton<QuoteRepository>(
+      () => QuoteRepositoryImpl(
+        remoteDataSource: sl<QuoteRemoteDataSource>(),
+        localDataSource: sl<QuoteLocalDataSource>(),
+        networkInfo: sl<NetworkInfo>(),
+      ),
+    );
+  }
+  if (!sl.isRegistered<GetAssetByBarcodeUseCase>()) {
+    sl.registerLazySingleton<GetAssetByBarcodeUseCase>(
+      () => GetAssetByBarcodeUseCase(sl<QuoteRepository>()),
+    );
+  }
+  if (!sl.isRegistered<CalculateQuickQuoteUseCase>()) {
+    sl.registerLazySingleton<CalculateQuickQuoteUseCase>(
+      () => CalculateQuickQuoteUseCase(sl<QuoteRepository>()),
+    );
   }
 }
 
