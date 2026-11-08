@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:uuid/uuid.dart';
-import '../constants/app_constants.dart';
+import '../config/app_config.dart';
 import '../storage/secure_storage_service.dart';
 import 'interceptors/auth_interceptor.dart';
 import 'interceptors/retry_interceptor.dart';
@@ -17,17 +17,21 @@ class ApiClient {
     SslPinningValidator? validator,
     Future<bool> Function()? onRefreshToken,
     void Function()? onSessionTerminated,
+    AppConfig? config,
   })  : sslPinningValidator = validator ??
-            const SslPinningValidator(
-              isProduction: bool.fromEnvironment('dart.vm.product'),
+            SslPinningValidator(
+              isProduction: (config ?? AppConfig.instance).enableStrictSslPinning,
+              allowedFingerprints: (config ?? AppConfig.instance).allowedSslFingerprints,
             ),
         dio = dioClient ??
             Dio(
               BaseOptions(
                 baseUrl: const String.fromEnvironment(
                   'API_BASE_URL',
-                  defaultValue: AppConstants.baseUrl,
-                ),
+                  defaultValue: '',
+                ).isNotEmpty
+                    ? const String.fromEnvironment('API_BASE_URL')
+                    : (config ?? AppConfig.instance).baseUrl,
               ),
             ) {
     dio.options.connectTimeout ??= const Duration(seconds: 15);
@@ -38,12 +42,14 @@ class ApiClient {
     _setupInterceptors(
       onRefreshToken: onRefreshToken,
       onSessionTerminated: onSessionTerminated,
+      enableVerboseLogging: (config ?? AppConfig.instance).enableVerboseLogging,
     );
   }
 
   void _setupInterceptors({
     Future<bool> Function()? onRefreshToken,
     void Function()? onSessionTerminated,
+    bool enableVerboseLogging = false,
   }) {
     // 1. Idempotency Key Interceptor for mutating verbs
     dio.interceptors.add(
@@ -74,5 +80,17 @@ class ApiClient {
     dio.interceptors.add(
       RetryInterceptor(dio: dio),
     );
+
+    // 4. Verbose Network Logging Interceptor (for dev/staging sandbox debugging)
+    if (enableVerboseLogging) {
+      dio.interceptors.add(
+        LogInterceptor(
+          requestBody: true,
+          responseBody: true,
+          requestHeader: false,
+          responseHeader: false,
+        ),
+      );
+    }
   }
 }

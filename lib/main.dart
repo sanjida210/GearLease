@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'core/config/app_config.dart';
 import 'core/di/injection_container.dart' as di;
 import 'core/theme/app_theme.dart';
 import 'features/gear_relay/presentation/bloc/gear_relay_bloc.dart';
@@ -13,7 +14,13 @@ import 'features/signature/presentation/bloc/signature_bloc.dart';
 import 'features/telemetry/presentation/bloc/telemetry_bloc.dart';
 
 void main() async {
+  await runGearLeaseApp(AppConfig.prod);
+}
+
+Future<void> runGearLeaseApp(AppConfig config) async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  AppConfig.initialize(config);
 
   // Initialize dependency injection
   await di.initDependencies();
@@ -28,14 +35,18 @@ void main() async {
     ),
   );
 
-  runApp(const GearLeaseApp());
+  runApp(GearLeaseApp(config: config));
 }
 
 class GearLeaseApp extends StatelessWidget {
-  const GearLeaseApp({super.key});
+  final AppConfig? config;
+
+  const GearLeaseApp({super.key, this.config});
 
   @override
   Widget build(BuildContext context) {
+    final activeConfig = config ?? AppConfig.instance;
+
     return MultiBlocProvider(
       providers: [
         BlocProvider<SyncBloc>(
@@ -58,8 +69,8 @@ class GearLeaseApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
-        title: 'GearLease Mobile',
-        debugShowCheckedModeBanner: false,
+        title: activeConfig.appTitle,
+        debugShowCheckedModeBanner: activeConfig.showDebugBanner,
         theme: AppTheme.darkTheme,
         home: const MainShellScreen(),
       ),
