@@ -38,6 +38,7 @@ void main() {
   setUp(() {
     mockScannerBloc = MockScannerBloc();
     when(() => mockScannerBloc.stream).thenAnswer((_) => const Stream.empty());
+    when(() => mockScannerBloc.state).thenReturn(const ScannerActive(isTorchOn: false));
   });
 
   Widget createWidgetUnderTest(ScannerState state) {
@@ -111,6 +112,80 @@ void main() {
       await tester.pump();
 
       expect(resolved?.serialNumber, 'LM-2026-9811');
+    });
+
+    testWidgets('renders camera flip controls and industrial green reticle overlay', (tester) async {
+      await tester.pumpWidget(createWidgetUnderTest(const ScannerActive(isTorchOn: false)));
+      await tester.pump();
+
+      expect(find.byKey(const Key('scanner_flip_camera_button')), findsOneWidget);
+      expect(find.byKey(const Key('scanner_viewfinder_reticle')), findsOneWidget);
+    });
+
+    testWidgets('provides desktop simulator fallback with mock barcodes CAT-320D-2024 and HAAS-VF2-CNC', (tester) async {
+      String? detectedCode;
+      await tester.pumpWidget(MaterialApp(
+        theme: AppTheme.darkTheme,
+        home: BlocProvider<ScannerBloc>.value(
+          value: mockScannerBloc,
+          child: BarcodeScannerScreen(
+            simulateDesktop: true,
+            onBarcodeDetected: (code) => detectedCode = code,
+          ),
+        ),
+      ));
+      await tester.pump();
+
+      expect(find.byKey(const Key('mock_chip_cat')), findsOneWidget);
+      expect(find.byKey(const Key('mock_chip_haas')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('mock_chip_cat')));
+      await tester.pump();
+
+      expect(detectedCode, 'CAT-320D-2024');
+      verify(() => mockScannerBloc.add(const ScannerBarcodeDetected('CAT-320D-2024'))).called(1);
+
+      await tester.tap(find.byKey(const Key('mock_chip_haas')));
+      await tester.pump();
+
+      expect(detectedCode, 'HAAS-VF2-CNC');
+      verify(() => mockScannerBloc.add(const ScannerBarcodeDetected('HAAS-VF2-CNC'))).called(1);
+    });
+
+    testWidgets('throttles duplicate barcode detections within 2 seconds', (tester) async {
+      final stateKey = GlobalKey<BarcodeScannerScreenState>();
+      await tester.pumpWidget(MaterialApp(
+        theme: AppTheme.darkTheme,
+        home: BlocProvider<ScannerBloc>.value(
+          value: mockScannerBloc,
+          child: BarcodeScannerScreen(key: stateKey),
+        ),
+      ));
+      await tester.pump();
+
+      final state = stateKey.currentState!;
+      // First detection should be allowed
+      expect(state.processBarcodeScan('CAT-320D-2024'), isTrue);
+      // Immediate duplicate detection within 2s should be rejected / throttled
+      expect(state.processBarcodeScan('CAT-320D-2024'), isFalse);
+    });
+
+    testWidgets('navigates to instant quote calculator or triggers onNavigateToQuote on ScannerSuccess', (tester) async {
+      bool navigated = false;
+      when(() => mockScannerBloc.state).thenReturn(const ScannerSuccess(testAsset));
+
+      await tester.pumpWidget(MaterialApp(
+        theme: AppTheme.darkTheme,
+        home: BlocProvider<ScannerBloc>.value(
+          value: mockScannerBloc,
+          child: BarcodeScannerScreen(
+            onNavigateToQuote: () => navigated = true,
+          ),
+        ),
+      ));
+      await tester.pump();
+
+      expect(navigated, isTrue);
     });
   });
 }
