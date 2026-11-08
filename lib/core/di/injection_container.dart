@@ -22,6 +22,10 @@ import '../../features/scanner/presentation/bloc/scanner_bloc.dart';
 import '../../features/signature/data/repositories/signature_repository_impl.dart';
 import '../../features/signature/domain/repositories/signature_repository.dart';
 import '../../features/signature/presentation/bloc/signature_bloc.dart';
+import '../../features/telemetry/data/datasources/telemetry_ws_datasource.dart';
+import '../../features/telemetry/data/repositories/telemetry_repository_impl.dart';
+import '../../features/telemetry/domain/repositories/telemetry_repository.dart';
+import '../../features/telemetry/presentation/bloc/telemetry_bloc.dart';
 
 final sl = GetIt.instance;
 
@@ -179,7 +183,28 @@ void initSignatureDependencies() {
 
 /// Feature DI: Real-Time IoT Machine Telemetry
 void initTelemetryDependencies() {
-  // WebSocket streams & predictive diagnostics
+  if (!sl.isRegistered<TelemetryWsDataSource>()) {
+    sl.registerLazySingleton<TelemetryWsDataSource>(
+      () => TelemetryWsDataSourceImpl(),
+    );
+  }
+  if (!sl.isRegistered<TelemetryRepository>()) {
+    sl.registerLazySingleton<TelemetryRepository>(
+      () => TelemetryRepositoryImpl(
+        wsDataSource: sl<TelemetryWsDataSource>(),
+        databaseHelper: sl<DatabaseHelper>(),
+        apiClient: sl<ApiClient>(),
+        networkInfo: sl<NetworkInfo>(),
+      ),
+    );
+  }
+  if (!sl.isRegistered<TelemetryBloc>()) {
+    sl.registerFactory<TelemetryBloc>(
+      () => TelemetryBloc(
+        telemetryRepository: sl<TelemetryRepository>(),
+      ),
+    );
+  }
 }
 
 /// Feature DI: Offline-First Queue & Sync Engine

@@ -27,6 +27,8 @@ class MachineTelemetry extends Equatable {
     required this.timestamp,
   });
 
+  bool get hasAlert => status != MachineStatus.optimal || temperatureCelsius >= 75.0;
+
   @override
   List<Object?> get props => [
         assetId,
