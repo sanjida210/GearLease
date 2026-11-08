@@ -17,6 +17,7 @@ import '../../features/quote/data/repositories/quote_repository_impl.dart';
 import '../../features/quote/domain/repositories/quote_repository.dart';
 import '../../features/quote/domain/usecases/calculate_quick_quote_usecase.dart';
 import '../../features/quote/domain/usecases/get_asset_by_barcode_usecase.dart';
+import '../../features/quote/presentation/bloc/quote_bloc.dart';
 
 final sl = GetIt.instance;
 
@@ -127,6 +128,14 @@ void initQuoteDependencies() {
   if (!sl.isRegistered<CalculateQuickQuoteUseCase>()) {
     sl.registerLazySingleton<CalculateQuickQuoteUseCase>(
       () => CalculateQuickQuoteUseCase(sl<QuoteRepository>()),
+    );
+  }
+  if (!sl.isRegistered<QuoteBloc>()) {
+    sl.registerFactory<QuoteBloc>(
+      () => QuoteBloc(
+        getAssetByBarcodeUseCase: sl<GetAssetByBarcodeUseCase>(),
+        calculateQuickQuoteUseCase: sl<CalculateQuickQuoteUseCase>(),
+      ),
     );
   }
 }
