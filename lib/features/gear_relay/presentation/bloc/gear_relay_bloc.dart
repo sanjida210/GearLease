@@ -10,22 +10,22 @@ class GearRelayBloc extends Bloc<GearRelayEvent, GearRelayState> {
   static List<InspectionAngle> get defaultAngles => const [
         InspectionAngle(
           type: InspectionAngleType.frontProfile,
-          title: 'Angle 1: Front Full Profile',
+          title: InspectionAngle.angle1Title,
           description: 'Capture entire machine profile from 6-8 feet with clear perimeter clearance.',
         ),
         InspectionAngle(
           type: InspectionAngleType.serialTag,
-          title: 'Angle 2: Serial Tag & Barcode',
+          title: InspectionAngle.angle2Title,
           description: 'Macro focus on manufacturer metal tag, stamped serial, and electrical specs.',
         ),
         InspectionAngle(
           type: InspectionAngleType.engineHousing,
-          title: 'Angle 3: Engine Housing / Bay',
+          title: InspectionAngle.angle3Title,
           description: 'Inspect drive belts, hydraulic connections, and primary motor cooling vents.',
         ),
         InspectionAngle(
           type: InspectionAngleType.controlDisplay,
-          title: 'Angle 4: Control Display & Hours',
+          title: InspectionAngle.angle4Title,
           description: 'Capture digital screen showing lifetime running hours and active diagnostic codes.',
         ),
       ];
@@ -88,15 +88,32 @@ class GearRelayBloc extends Bloc<GearRelayEvent, GearRelayState> {
       emit(current.copyWith(isSubmitting: true));
 
       try {
-        final valuationId = await repository.submitInspectionBundle(
-          assetId: event.assetId,
-          angles: current.angles,
+        final photoMap = <String, String>{};
+        for (final angle in current.angles) {
+          if (angle.localFilePath != null) {
+            photoMap[angle.title] = angle.localFilePath!;
+          }
+        }
+
+        final result = await repository.submitInspectionBundle(
+          event.assetId,
+          photoMap,
         );
 
-        emit(current.copyWith(
-          isSubmitting: false,
-          completedValuationId: valuationId,
-        ));
+        result.when(
+          success: (inspection) {
+            emit(current.copyWith(
+              isSubmitting: false,
+              completedValuationId: inspection.inspectionId,
+            ));
+          },
+          failure: (failure) {
+            emit(current.copyWith(
+              isSubmitting: false,
+              errorMessage: failure.message,
+            ));
+          },
+        );
       } catch (e) {
         emit(current.copyWith(
           isSubmitting: false,

@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'package:uuid/uuid.dart';
+import '../../../../core/error/failures.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/network_info.dart';
 import '../../../../core/storage/database_helper.dart';
-import '../../domain/entities/inspection_angle.dart';
+import '../../../../core/utils/result.dart';
+import '../../domain/entities/return_inspection.dart';
 import '../../domain/repositories/gear_relay_repository.dart';
 import '../services/image_compression_service.dart';
 
@@ -21,66 +23,99 @@ class GearRelayRepositoryImpl implements GearRelayRepository {
   });
 
   @override
-  Future<String> submitInspectionBundle({
-    required String assetId,
-    required List<InspectionAngle> angles,
+  Future<Result<ReturnInspection, Failure>> submitInspectionBundle(
+    String leaseId,
+    Map<String, String> photoPaths, {
     double? latitude,
     double? longitude,
   }) async {
-    final List<Map<String, dynamic>> processedAngles = [];
+    final Map<String, String> compressedPhotos = {};
 
-    for (final angle in angles) {
-      String path = angle.localFilePath ?? '';
+    for (final entry in photoPaths.entries) {
+      String path = entry.value;
       if (path.isNotEmpty) {
         path = await compressionService.compressImage(path);
       }
-      processedAngles.add({
-        'angle_type': angle.type.name,
-        'title': angle.title,
-        'image_path': path,
-        'is_captured': angle.isCaptured,
-      });
+      compressedPhotos[entry.key] = path;
     }
 
     final isOnline = await networkInfo.isConnected;
     final bundleId = const Uuid().v4();
 
+    final payload = {
+      'bundle_id': bundleId,
+      'lease_id': leaseId,
+      'asset_id': leaseId,
+      'recorded_at': DateTime.now().toIso8601String(),
+      'photo_paths': compressedPhotos,
+      'gps_latitude': latitude ?? 37.7749,
+      'gps_longitude': longitude ?? -122.4194,
+    };
+
     if (isOnline) {
       try {
         final response = await apiClient.dio.post(
           '/api/v1/mobile/assets/inspection-bundle',
-          data: {
-            'bundle_id': bundleId,
-            'asset_id': assetId,
-            'recorded_at': DateTime.now().toIso8601String(),
-            'angles': processedAngles,
-            'gps_latitude': latitude ?? 37.7749,
-            'gps_longitude': longitude ?? -122.4194,
-          },
+          data: payload,
         );
 
         if (response.statusCode == 200 || response.statusCode == 201) {
           final data = response.data;
-          if (data is Map && data.containsKey('valuation_id')) {
-            return data['valuation_id'] as String;
+          String inspectionId = 'cpo_val_${bundleId.substring(0, 8)}';
+          ReturnInspectionGrade grade = ReturnInspectionGrade.A_EXCELLENT;
+
+          if (data is Map) {
+            inspectionId = data['inspection_id'] as String? ??
+                data['valuation_id'] as String? ??
+                inspectionId;
+            if (data.containsKey('overall_grade')) {
+              grade = ReturnInspectionGrade.fromString(data['overall_grade'] as String);
+            }
           }
-          return 'cpo_val_${bundleId.substring(0, 8)}';
+
+          return Result.success(ReturnInspection(
+            inspectionId: inspectionId,
+            leaseId: leaseId,
+            assetId: leaseId,
+            inspectionDate: DateTime.now(),
+            overallGrade: grade,
+            photoPaths: compressedPhotos,
+          ));
+        } else {
+          return Result.failure(ServerFailure(
+            'Inspection submission failed with status code ${response.statusCode}',
+            statusCode: response.statusCode,
+          ));
         }
-      } catch (_) {
+      } catch (e) {
         // Fall back to offline queue
-        await _enqueueOfflineBundle(bundleId, assetId, processedAngles, latitude, longitude);
-        return 'offline_cpo_${bundleId.substring(0, 8)}';
+        await _enqueueOfflineBundle(bundleId, leaseId, compressedPhotos, latitude, longitude);
+        return Result.success(ReturnInspection(
+          inspectionId: 'offline_cpo_${bundleId.substring(0, 8)}',
+          leaseId: leaseId,
+          assetId: leaseId,
+          inspectionDate: DateTime.now(),
+          overallGrade: ReturnInspectionGrade.A_EXCELLENT,
+          photoPaths: compressedPhotos,
+        ));
       }
     }
 
-    await _enqueueOfflineBundle(bundleId, assetId, processedAngles, latitude, longitude);
-    return 'offline_cpo_${bundleId.substring(0, 8)}';
+    await _enqueueOfflineBundle(bundleId, leaseId, compressedPhotos, latitude, longitude);
+    return Result.success(ReturnInspection(
+      inspectionId: 'offline_cpo_${bundleId.substring(0, 8)}',
+      leaseId: leaseId,
+      assetId: leaseId,
+      inspectionDate: DateTime.now(),
+      overallGrade: ReturnInspectionGrade.A_EXCELLENT,
+      photoPaths: compressedPhotos,
+    ));
   }
 
   Future<void> _enqueueOfflineBundle(
     String bundleId,
-    String assetId,
-    List<Map<String, dynamic>> angles,
+    String leaseId,
+    Map<String, String> photoPaths,
     double? latitude,
     double? longitude,
   ) async {
@@ -90,9 +125,10 @@ class GearRelayRepositoryImpl implements GearRelayRepository {
       'method': 'POST',
       'payload': jsonEncode({
         'bundle_id': bundleId,
-        'asset_id': assetId,
+        'lease_id': leaseId,
+        'asset_id': leaseId,
         'recorded_at': DateTime.now().toIso8601String(),
-        'angles': angles,
+        'photo_paths': photoPaths,
         'gps_latitude': latitude ?? 37.7749,
         'gps_longitude': longitude ?? -122.4194,
       }),

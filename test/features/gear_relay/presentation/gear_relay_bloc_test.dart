@@ -1,5 +1,8 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gearlease/core/error/failures.dart';
+import 'package:gearlease/core/utils/result.dart';
+import 'package:gearlease/features/gear_relay/domain/entities/return_inspection.dart';
 import 'package:gearlease/features/gear_relay/domain/repositories/gear_relay_repository.dart';
 import 'package:gearlease/features/gear_relay/presentation/bloc/gear_relay_bloc.dart';
 import 'package:gearlease/features/gear_relay/presentation/bloc/gear_relay_event.dart';
@@ -76,9 +79,15 @@ void main() {
       'submits inspection bundle and emits completedValuationId on GearRelaySubmitRequested',
       build: () {
         when(() => mockRepository.submitInspectionBundle(
-              assetId: any(named: 'assetId'),
-              angles: any(named: 'angles'),
-            )).thenAnswer((_) async => 'cpo_val_883311');
+              any(),
+              any(),
+            )).thenAnswer((_) async => Result.success(ReturnInspection(
+              inspectionId: 'cpo_val_883311',
+              leaseId: 'ast_probat12',
+              assetId: 'ast_probat12',
+              inspectionDate: DateTime.now(),
+              overallGrade: ReturnInspectionGrade.A_EXCELLENT,
+            )));
         return gearRelayBloc;
       },
       seed: () => GearRelayActive(
@@ -91,6 +100,28 @@ void main() {
         isA<GearRelayActive>()
             .having((s) => s.isSubmitting, 'isSubmitting', isFalse)
             .having((s) => s.completedValuationId, 'completedValuationId', 'cpo_val_883311'),
+      ],
+    );
+
+    blocTest<GearRelayBloc, GearRelayState>(
+      'emits errorMessage when repository returns failure on submit',
+      build: () {
+        when(() => mockRepository.submitInspectionBundle(
+              any(),
+              any(),
+            )).thenAnswer((_) async => Result.failure(const ServerFailure('Upload timeout')));
+        return gearRelayBloc;
+      },
+      seed: () => GearRelayActive(
+        assetId: 'ast_probat12',
+        angles: GearRelayBloc.defaultAngles.map((a) => a.copyWith(isCaptured: true)).toList(),
+      ),
+      act: (bloc) => bloc.add(const GearRelaySubmitRequested('ast_probat12')),
+      expect: () => [
+        isA<GearRelayActive>().having((s) => s.isSubmitting, 'isSubmitting', isTrue),
+        isA<GearRelayActive>()
+            .having((s) => s.isSubmitting, 'isSubmitting', isFalse)
+            .having((s) => s.errorMessage, 'errorMessage', 'Upload timeout'),
       ],
     );
   });

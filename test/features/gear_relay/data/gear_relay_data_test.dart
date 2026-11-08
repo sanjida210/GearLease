@@ -5,7 +5,7 @@ import 'package:gearlease/core/network/network_info.dart';
 import 'package:gearlease/core/storage/database_helper.dart';
 import 'package:gearlease/features/gear_relay/data/repositories/gear_relay_repository_impl.dart';
 import 'package:gearlease/features/gear_relay/data/services/image_compression_service.dart';
-import 'package:gearlease/features/gear_relay/domain/entities/inspection_angle.dart';
+import 'package:gearlease/features/gear_relay/domain/entities/return_inspection.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockApiClient extends Mock implements ApiClient {}
@@ -24,22 +24,10 @@ void main() {
   late MockImageCompressionService mockCompressionService;
   late GearRelayRepositoryImpl repository;
 
-  final testAngles = [
-    const InspectionAngle(
-      type: InspectionAngleType.frontProfile,
-      title: 'Angle 1: Front Full Profile',
-      description: 'Capture entire machine profile from 6-8 feet.',
-      localFilePath: '/tmp/front.jpg',
-      isCaptured: true,
-    ),
-    const InspectionAngle(
-      type: InspectionAngleType.serialTag,
-      title: 'Angle 2: Serial Tag & Barcode',
-      description: 'Macro focus on manufacturer metal tag.',
-      localFilePath: '/tmp/serial.jpg',
-      isCaptured: true,
-    ),
-  ];
+  final testPhotos = {
+    'Angle 1: Front Full Profile': '/tmp/front.jpg',
+    'Angle 2: Manufacturer Serial & Barcode Tag': '/tmp/serial.jpg',
+  };
 
   setUp(() {
     mockApiClient = MockApiClient();
@@ -61,22 +49,27 @@ void main() {
   });
 
   group('GearRelayRepositoryImpl Tests', () {
-    test('submits bundle online and returns valuation ID', () async {
+    test('submits bundle online and returns ReturnInspection Result', () async {
       when(() => mockNetworkInfo.isConnected).thenAnswer((_) async => true);
       when(() => mockDio.post(any(), data: any(named: 'data'))).thenAnswer(
         (_) async => Response(
           statusCode: 200,
-          data: {'valuation_id': 'cpo_val_test123'},
+          data: {
+            'inspection_id': 'cpo_val_test123',
+            'overall_grade': 'B_GOOD',
+          },
           requestOptions: RequestOptions(path: ''),
         ),
       );
 
       final result = await repository.submitInspectionBundle(
-        assetId: 'ast_probat12',
-        angles: testAngles,
+        'ast_probat12',
+        testPhotos,
       );
 
-      expect(result, equals('cpo_val_test123'));
+      expect(result.isSuccess, isTrue);
+      expect(result.dataOrNull?.inspectionId, equals('cpo_val_test123'));
+      expect(result.dataOrNull?.overallGrade, equals(ReturnInspectionGrade.B_GOOD));
       verify(() => mockCompressionService.compressImage('/tmp/front.jpg')).called(1);
       verify(() => mockCompressionService.compressImage('/tmp/serial.jpg')).called(1);
       verify(() => mockDio.post('/api/v1/mobile/assets/inspection-bundle', data: any(named: 'data'))).called(1);
@@ -87,12 +80,32 @@ void main() {
       when(() => mockDatabaseHelper.insertSyncQueueItem(any())).thenAnswer((_) async => 1);
 
       final result = await repository.submitInspectionBundle(
-        assetId: 'ast_probat12',
-        angles: testAngles,
+        'ast_probat12',
+        testPhotos,
       );
 
-      expect(result, startsWith('offline_cpo_'));
+      expect(result.isSuccess, isTrue);
+      expect(result.dataOrNull?.inspectionId, startsWith('offline_cpo_'));
       verify(() => mockDatabaseHelper.insertSyncQueueItem(any())).called(1);
+    });
+
+    test('returns failure result on non-200 HTTP response', () async {
+      when(() => mockNetworkInfo.isConnected).thenAnswer((_) async => true);
+      when(() => mockDio.post(any(), data: any(named: 'data'))).thenAnswer(
+        (_) async => Response(
+          statusCode: 500,
+          data: 'Internal Server Error',
+          requestOptions: RequestOptions(path: ''),
+        ),
+      );
+
+      final result = await repository.submitInspectionBundle(
+        'ast_probat12',
+        testPhotos,
+      );
+
+      expect(result.isFailure, isTrue);
+      expect(result.failureOrNull?.message, contains('500'));
     });
   });
 }

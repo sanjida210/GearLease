@@ -1,10 +1,10 @@
-import '../entities/inspection_angle.dart';
+import '../../../../core/error/failures.dart';
+import '../../../../core/utils/result.dart';
+import '../entities/return_inspection.dart';
 
 abstract class GearRelayRepository {
-  Future<String> submitInspectionBundle({
-    required String assetId,
-    required List<InspectionAngle> angles,
-    double? latitude,
-    double? longitude,
-  });
+  Future<Result<ReturnInspection, Failure>> submitInspectionBundle(
+    String leaseId,
+    Map<String, String> photoPaths,
+  );
 }
