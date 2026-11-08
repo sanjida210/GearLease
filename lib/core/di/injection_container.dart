@@ -17,6 +17,7 @@ import '../../features/quote/data/repositories/quote_repository_impl.dart';
 import '../../features/quote/domain/repositories/quote_repository.dart';
 import '../../features/quote/domain/usecases/calculate_quick_quote_usecase.dart';
 import '../../features/quote/domain/usecases/get_asset_by_barcode_usecase.dart';
+import '../../features/quote/domain/usecases/submit_lease_agreement_usecase.dart';
 import '../../features/quote/presentation/bloc/quote_bloc.dart';
 import '../../features/scanner/presentation/bloc/scanner_bloc.dart';
 import '../../features/signature/data/repositories/signature_repository_impl.dart';
@@ -145,6 +146,15 @@ void initQuoteDependencies() {
   if (!sl.isRegistered<CalculateQuickQuoteUseCase>()) {
     sl.registerLazySingleton<CalculateQuickQuoteUseCase>(
       () => CalculateQuickQuoteUseCase(sl<QuoteRepository>()),
+    );
+  }
+  if (!sl.isRegistered<SubmitLeaseAgreementUseCase>()) {
+    sl.registerLazySingleton<SubmitLeaseAgreementUseCase>(
+      () => SubmitLeaseAgreementUseCase(
+        apiClient: sl<ApiClient>(),
+        syncRepository: sl<SyncRepository>(),
+        networkInfo: sl<NetworkInfo>(),
+      ),
     );
   }
   if (!sl.isRegistered<QuoteBloc>()) {
