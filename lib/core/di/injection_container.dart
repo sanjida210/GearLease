@@ -6,6 +6,10 @@ import '../network/api_client.dart';
 import '../network/network_info.dart';
 import '../storage/database_helper.dart';
 import '../storage/secure_storage_service.dart';
+import '../../features/auth/data/datasources/auth_remote_datasource.dart';
+import '../../features/auth/data/datasources/biometric_local_datasource.dart';
+import '../../features/auth/data/repositories/auth_repository_impl.dart';
+import '../../features/auth/domain/repositories/auth_repository.dart';
 
 final sl = GetIt.instance;
 
@@ -61,7 +65,25 @@ Future<void> initDependencies() async {
 
 /// Feature DI: Authentication & Biometrics
 void initAuthDependencies() {
-  // Domain repositories & BLoCs will be registered here as features are implemented
+  if (!sl.isRegistered<AuthRemoteDataSource>()) {
+    sl.registerLazySingleton<AuthRemoteDataSource>(
+      () => AuthRemoteDataSourceImpl(apiClient: sl<ApiClient>()),
+    );
+  }
+  if (!sl.isRegistered<BiometricLocalDataSource>()) {
+    sl.registerLazySingleton<BiometricLocalDataSource>(
+      () => BiometricLocalDataSourceImpl(),
+    );
+  }
+  if (!sl.isRegistered<AuthRepository>()) {
+    sl.registerLazySingleton<AuthRepository>(
+      () => AuthRepositoryImpl(
+        remoteDataSource: sl<AuthRemoteDataSource>(),
+        biometricDataSource: sl<BiometricLocalDataSource>(),
+        storageService: sl<SecureStorageService>(),
+      ),
+    );
+  }
 }
 
 /// Feature DI: Underwriting & Quick Quote Calculator
