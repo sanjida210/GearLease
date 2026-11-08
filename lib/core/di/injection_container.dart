@@ -19,6 +19,9 @@ import '../../features/quote/domain/usecases/calculate_quick_quote_usecase.dart'
 import '../../features/quote/domain/usecases/get_asset_by_barcode_usecase.dart';
 import '../../features/quote/presentation/bloc/quote_bloc.dart';
 import '../../features/scanner/presentation/bloc/scanner_bloc.dart';
+import '../../features/signature/data/repositories/signature_repository_impl.dart';
+import '../../features/signature/domain/repositories/signature_repository.dart';
+import '../../features/signature/presentation/bloc/signature_bloc.dart';
 
 final sl = GetIt.instance;
 
@@ -67,6 +70,7 @@ Future<void> initDependencies() async {
   initAuthDependencies();
   initQuoteDependencies();
   initScannerDependencies();
+  initSignatureDependencies();
   initTelemetryDependencies();
   initOfflineSyncDependencies();
   initGearRelayDependencies();
@@ -147,6 +151,27 @@ void initScannerDependencies() {
     sl.registerFactory<ScannerBloc>(
       () => ScannerBloc(
         getAssetByBarcodeUseCase: sl<GetAssetByBarcodeUseCase>(),
+      ),
+    );
+  }
+}
+
+/// Feature DI: Vector E-Signature on Glass
+void initSignatureDependencies() {
+  if (!sl.isRegistered<SignatureRepository>()) {
+    sl.registerLazySingleton<SignatureRepository>(
+      () => SignatureRepositoryImpl(
+        apiClient: sl<ApiClient>(),
+        databaseHelper: sl<DatabaseHelper>(),
+        networkInfo: sl<NetworkInfo>(),
+      ),
+    );
+  }
+  if (!sl.isRegistered<SignatureBloc>()) {
+    sl.registerFactory<SignatureBloc>(
+      () => SignatureBloc(
+        signatureRepository: sl<SignatureRepository>(),
+        biometricDataSource: sl<BiometricLocalDataSource>(),
       ),
     );
   }

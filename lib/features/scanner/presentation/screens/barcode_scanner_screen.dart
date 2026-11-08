@@ -38,6 +38,13 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
       );
     }
     context.read<ScannerBloc>().add(ScannerStartRequested());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final state = context.read<ScannerBloc>().state;
+      if (state is ScannerSuccess) {
+        widget.onAssetResolved?.call(state.asset);
+      }
+    });
   }
 
   @override

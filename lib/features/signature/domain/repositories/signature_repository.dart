@@ -1,11 +1,7 @@
+import '../../../../core/error/failures.dart';
+import '../../../../core/utils/result.dart';
 import '../entities/mobile_sign_event.dart';
 
 abstract class SignatureRepository {
-  Future<MobileSignEvent> submitSignature({
-    required String contractId,
-    required String signatureVectorPath,
-    String? biometricUsed,
-    double? gpsLatitude,
-    double? gpsLongitude,
-  });
+  Future<Result<MobileSignEvent, Failure>> submitSignature(MobileSignEvent signEvent);
 }
