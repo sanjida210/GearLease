@@ -7,14 +7,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AuthRepository authRepository;
 
   AuthBloc({required this.authRepository}) : super(AuthInitial()) {
-    on<AuthCheckRequested>(_onAuthCheckRequested);
-    on<AuthLoginRequested>(_onAuthLoginRequested);
-    on<AuthBiometricLoginRequested>(_onAuthBiometricLoginRequested);
-    on<AuthLogoutRequested>(_onAuthLogoutRequested);
+    on<AppStarted>(_onAppStarted);
+    on<LoginRequested>(_onLoginRequested);
+    on<BiometricAuthRequested>(_onBiometricAuthRequested);
+    on<LogoutRequested>(_onLogoutRequested);
   }
 
-  Future<void> _onAuthCheckRequested(
-    AuthCheckRequested event,
+  Future<void> _onAppStarted(
+    AppStarted event,
     Emitter<AuthState> emit,
   ) async {
     emit(AuthLoading());
@@ -22,17 +22,17 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     result.when(
       success: (session) {
         if (session != null) {
-          emit(AuthAuthenticated(session));
+          emit(Authenticated(session));
         } else {
-          emit(AuthUnauthenticated());
+          emit(Unauthenticated());
         }
       },
-      failure: (_) => emit(AuthUnauthenticated()),
+      failure: (_) => emit(Unauthenticated()),
     );
   }
 
-  Future<void> _onAuthLoginRequested(
-    AuthLoginRequested event,
+  Future<void> _onLoginRequested(
+    LoginRequested event,
     Emitter<AuthState> emit,
   ) async {
     emit(AuthLoading());
@@ -41,29 +41,29 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       event.password,
     );
     result.when(
-      success: (session) => emit(AuthAuthenticated(session)),
-      failure: (failure) => emit(AuthFailureState(failure.toString())),
+      success: (session) => emit(Authenticated(session)),
+      failure: (failure) => emit(AuthFailure(failure.toString())),
     );
   }
 
-  Future<void> _onAuthBiometricLoginRequested(
-    AuthBiometricLoginRequested event,
+  Future<void> _onBiometricAuthRequested(
+    BiometricAuthRequested event,
     Emitter<AuthState> emit,
   ) async {
     emit(AuthLoading());
     final result = await authRepository.authenticateWithBiometrics();
     result.when(
-      success: (session) => emit(AuthAuthenticated(session)),
-      failure: (failure) => emit(AuthFailureState(failure.toString())),
+      success: (session) => emit(Authenticated(session)),
+      failure: (failure) => emit(AuthFailure(failure.toString())),
     );
   }
 
-  Future<void> _onAuthLogoutRequested(
-    AuthLogoutRequested event,
+  Future<void> _onLogoutRequested(
+    LogoutRequested event,
     Emitter<AuthState> emit,
   ) async {
     emit(AuthLoading());
     await authRepository.logout();
-    emit(AuthUnauthenticated());
+    emit(Unauthenticated());
   }
 }
