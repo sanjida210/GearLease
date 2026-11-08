@@ -80,21 +80,30 @@ void main() {
     });
 
     blocTest<QuoteBloc, QuoteState>(
-      'emits [QuoteLoading, AssetResolved] on successful LookupAssetRequested',
+      'emits [QuoteAssetResolving, AssetResolved, QuoteCalculating, QuoteReady] on successful LookupAssetRequested',
       build: () {
         when(() => mockGetAssetUseCase('GL-ROAST-2026-9811'))
             .thenAnswer((_) async => Result.success(testAsset));
+        when(() => mockCalculateQuoteUseCase(any()))
+            .thenAnswer((_) async => Result.success(testQuote));
         return quoteBloc;
       },
       act: (bloc) => bloc.add(const LookupAssetRequested('GL-ROAST-2026-9811')),
       expect: () => [
-        QuoteLoading(),
+        QuoteAssetResolving(),
         const AssetResolved(testAsset),
+        QuoteCalculating(),
+        const QuoteReady(
+          asset: testAsset,
+          calculation: testQuote,
+          selectedTermMonths: 36,
+          selectedPricingType: PricingType.FIXED_ANNUITY,
+        ),
       ],
     );
 
     blocTest<QuoteBloc, QuoteState>(
-      'emits [QuoteLoading, QuoteErrorState] on failed LookupAssetRequested',
+      'emits [QuoteAssetResolving, QuoteErrorState] on failed LookupAssetRequested',
       build: () {
         when(() => mockGetAssetUseCase('UNKNOWN'))
             .thenAnswer((_) async => Result.failure(const ServerFailure('Asset not found')));
@@ -102,8 +111,8 @@ void main() {
       },
       act: (bloc) => bloc.add(const LookupAssetRequested('UNKNOWN')),
       expect: () => [
-        QuoteLoading(),
-        const QuoteErrorState('ServerFailure: Asset not found'),
+        QuoteAssetResolving(),
+        const QuoteErrorState('Asset not found'),
       ],
     );
 
