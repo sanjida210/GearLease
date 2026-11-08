@@ -117,16 +117,21 @@ class _FleetDashboardScreenState extends State<FleetDashboardScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'MACHINES IN OPERATION (${filteredFleet.length}/${fleet.length})',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.1,
-                        color: AppColors.ledgerMuted,
+                    Expanded(
+                      child: Text(
+                        'MACHINES IN OPERATION (${filteredFleet.length}/${fleet.length})',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.1,
+                          color: AppColors.ledgerMuted,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    const SizedBox(width: 8),
                     const Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         CircleAvatar(radius: 4, backgroundColor: AppColors.performanceGreen),
                         SizedBox(width: 4),
