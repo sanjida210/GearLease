@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../telemetry/domain/entities/machine_telemetry.dart';
 import '../../../telemetry/presentation/bloc/telemetry_bloc.dart';
@@ -20,10 +21,28 @@ class FleetDashboardScreen extends StatefulWidget {
 }
 
 class _FleetDashboardScreenState extends State<FleetDashboardScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  late TelemetryBloc _telemetryBloc;
+  String _searchQuery = '';
+  String _selectedStatusFilter = 'All';
+
   @override
   void initState() {
     super.initState();
     context.read<TelemetryBloc>().add(TelemetryFleetSubscribeRequested());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _telemetryBloc = context.read<TelemetryBloc>();
+  }
+
+  @override
+  void dispose() {
+    _telemetryBloc.add(const StopTelemetryStream());
+    _searchController.dispose();
+    super.dispose();
   }
 
   @override
@@ -50,7 +69,7 @@ class _FleetDashboardScreenState extends State<FleetDashboardScreen> {
       ),
       body: BlocBuilder<TelemetryBloc, TelemetryState>(
         builder: (context, state) {
-          if (state is TelemetryLoading) {
+          if (state is TelemetryConnecting) {
             return const Center(
               child: CircularProgressIndicator(color: AppColors.precisionCyan),
             );
@@ -61,23 +80,47 @@ class _FleetDashboardScreenState extends State<FleetDashboardScreen> {
             fleet = state.fleet.isNotEmpty ? state.fleet : [state.data];
           }
 
+          final totalHours = fleet.fold<double>(0.0, (sum, m) => sum + m.operatingHours);
+          final totalBillingCents = fleet.fold<int>(0, (sum, m) => sum + m.currentBillingCents);
+
+          // Apply filters
+          final filteredFleet = fleet.where((machine) {
+            final matchesSearch = _searchQuery.isEmpty ||
+                machine.assetId.toLowerCase().contains(_searchQuery) ||
+                machine.machineName.toLowerCase().contains(_searchQuery) ||
+                machine.category.toLowerCase().contains(_searchQuery);
+
+            final matchesStatus = switch (_selectedStatusFilter) {
+              'Optimal' => machine.status == MachineStatus.optimal,
+              'Warning' => machine.status == MachineStatus.warning,
+              'Critical' => machine.status == MachineStatus.fault,
+              _ => true,
+            };
+
+            return matchesSearch && matchesStatus;
+          }).toList();
+
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Top Financial Overview
-                _buildFinancialOverviewCard(),
-                const SizedBox(height: 20),
+                // Requirement 1: Fleet Metrics Bar
+                _buildFleetMetricsBar(fleet.length, totalHours, totalBillingCents),
+                const SizedBox(height: 16),
 
-                // Machines Section Title
+                // Requirement 3: Filter & Search controls
+                _buildSearchAndFilters(),
+                const SizedBox(height: 16),
+
+                // Section Title with active counter
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'MACHINES IN OPERATION (${fleet.length})',
+                      'MACHINES IN OPERATION (${filteredFleet.length}/${fleet.length})',
                       style: const TextStyle(
-                        fontSize: 12,
+                        fontSize: 11,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 1.1,
                         color: AppColors.ledgerMuted,
@@ -101,19 +144,20 @@ class _FleetDashboardScreenState extends State<FleetDashboardScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                // Asset Cards
-                if (fleet.isEmpty)
-                  const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(32.0),
-                      child: Text(
-                        'No active leased machinery found',
-                        style: TextStyle(color: AppColors.ledgerMuted),
-                      ),
+                // Requirement 2 & 4: Machine Asset Cards
+                if (filteredFleet.isEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(32.0),
+                    alignment: Alignment.center,
+                    child: Text(
+                      fleet.isEmpty
+                          ? 'No active leased machinery found'
+                          : 'No machinery matching "$_searchQuery" or filter',
+                      style: const TextStyle(color: AppColors.ledgerMuted),
                     ),
                   )
                 else
-                  ...fleet.map((machine) => _buildMachineCard(context, machine)),
+                  ...filteredFleet.map((machine) => _buildMachineCard(context, machine)),
               ],
             ),
           );
@@ -122,7 +166,12 @@ class _FleetDashboardScreenState extends State<FleetDashboardScreen> {
     );
   }
 
-  Widget _buildFinancialOverviewCard() {
+  /// Requirement 1: Fleet Metrics Bar
+  /// Total leased assets, active operating hours, total monthly payment forecast.
+  Widget _buildFleetMetricsBar(int assetCount, double totalHours, int totalBillingCents) {
+    final hoursFormatted = NumberFormat('#,##0.0').format(totalHours);
+    final forecastFormatted = NumberFormat('#,##0.00').format(totalBillingCents / 100);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -133,75 +182,85 @@ class _FleetDashboardScreenState extends State<FleetDashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'PORTFOLIO REPAYMENT SCHEDULE',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.1,
-              color: AppColors.ledgerMuted,
-            ),
-          ),
-          const SizedBox(height: 16),
           Row(
             children: [
               Expanded(
+                flex: 3,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'CAPITAL COMMITTED',
-                      style: TextStyle(fontSize: 10, color: AppColors.ledgerMuted),
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      '\$118,500',
+                      'TOTAL LEASED ASSETS',
                       style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.ledgerWhite,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.8,
+                        color: AppColors.ledgerMuted,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '3 Leased Assets',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: AppColors.cyanAccent.withValues(alpha: 0.8),
+                      '$assetCount',
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.ledgerWhite,
                       ),
                     ),
                   ],
                 ),
               ),
-              Container(
-                height: 45,
-                width: 1,
-                color: AppColors.neutralBorder,
-              ),
-              const SizedBox(width: 16),
-              const Expanded(
+              Container(height: 36, width: 1, color: AppColors.neutralBorder),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 4,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'NEXT ACH DEDUCTION',
-                      style: TextStyle(fontSize: 10, color: AppColors.ledgerMuted),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      '\$2,290.00',
+                    const Text(
+                      'ACTIVE OPERATING HOURS',
                       style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.performanceGreen,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.8,
+                        color: AppColors.ledgerMuted,
                       ),
                     ),
-                    SizedBox(height: 4),
+                    const SizedBox(height: 4),
                     Text(
-                      'Due Nov 15 • Auto-Debit',
+                      '$hoursFormatted hrs',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.cyanAccent,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(height: 36, width: 1, color: AppColors.neutralBorder),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 4,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'MONTHLY PAYMENT FORECAST',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.8,
                         color: AppColors.ledgerMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '\$$forecastFormatted',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.performanceGreen,
                       ),
                     ),
                   ],
@@ -214,25 +273,120 @@ class _FleetDashboardScreenState extends State<FleetDashboardScreen> {
     );
   }
 
-  Widget _buildMachineCard(BuildContext context, MachineTelemetry machine) {
-    Color statusColor;
-    String statusText;
-    switch (machine.status) {
-      case MachineStatus.warning:
-        statusColor = AppColors.industrialAmber;
-        statusText = 'WARNING';
-        break;
-      case MachineStatus.fault:
-        statusColor = AppColors.criticalRed;
-        statusText = 'FAULT';
-        break;
-      case MachineStatus.optimal:
-        statusColor = AppColors.performanceGreen;
-        statusText = 'OPTIMAL';
-        break;
-    }
+  /// Requirement 3: Filter & Search
+  Widget _buildSearchAndFilters() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Search Input
+        TextField(
+          key: const Key('fleet_search_input'),
+          controller: _searchController,
+          onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
+          style: const TextStyle(color: AppColors.ledgerWhite, fontSize: 13),
+          decoration: InputDecoration(
+            hintText: 'Search by serial, make, or model...',
+            hintStyle: const TextStyle(color: AppColors.ledgerMuted, fontSize: 13),
+            prefixIcon: const Icon(Icons.search, color: AppColors.ledgerMuted, size: 18),
+            suffixIcon: _searchQuery.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.clear, color: AppColors.ledgerMuted, size: 16),
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() => _searchQuery = '');
+                    },
+                  )
+                : null,
+            filled: true,
+            fillColor: AppColors.surfaceCard,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: AppColors.neutralBorder),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: AppColors.neutralBorder),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: AppColors.precisionCyan),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
 
-    final billingDollars = (machine.currentBillingCents / 100).toStringAsFixed(0);
+        // Status Filter Chips
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _buildFilterChip('All', const Key('filter_chip_all')),
+              const SizedBox(width: 8),
+              _buildFilterChip('Optimal', const Key('filter_chip_optimal'), AppColors.performanceGreen),
+              const SizedBox(width: 8),
+              _buildFilterChip('Warning', const Key('filter_chip_warning'), AppColors.industrialAmber),
+              const SizedBox(width: 8),
+              _buildFilterChip('Critical', const Key('filter_chip_critical'), AppColors.criticalRed),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFilterChip(String label, Key key, [Color? dotColor]) {
+    final isSelected = _selectedStatusFilter == label;
+    return InkWell(
+      key: key,
+      borderRadius: BorderRadius.circular(20),
+      onTap: () => setState(() => _selectedStatusFilter = label),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.surfaceCardElevated : AppColors.surfaceCard,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? AppColors.precisionCyan : AppColors.neutralBorder,
+            width: isSelected ? 1.5 : 1.0,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (dotColor != null) ...[
+              CircleAvatar(radius: 3, backgroundColor: dotColor),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected ? AppColors.ledgerWhite : AppColors.ledgerMuted,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Requirement 2: Machine Asset Cards
+  /// - Machine make, model, serial, and thumbnail.
+  /// - Live status badge: "Optimal" (Green), "Warning" (Amber), or "Critical" (Red).
+  /// - Real-time telemetry pills: Operating Hours, Current RPM, Temperature.
+  /// - Next ACH Auto-Debit date and scheduled amount.
+  Widget _buildMachineCard(BuildContext context, MachineTelemetry machine) {
+    final (statusColor, statusText) = switch (machine.status) {
+      MachineStatus.warning => (AppColors.industrialAmber, 'Warning'),
+      MachineStatus.fault => (AppColors.criticalRed, 'Critical'),
+      MachineStatus.optimal => (AppColors.performanceGreen, 'Optimal'),
+    };
+
+    final billingDollars = NumberFormat('#,##0.00').format(machine.currentBillingCents / 100);
+    final hoursFormatted = NumberFormat('#,##0.0').format(machine.runningHours);
+    final rpmFormatted = NumberFormat('#,##0').format(machine.rpm);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -240,13 +394,14 @@ class _FleetDashboardScreenState extends State<FleetDashboardScreen> {
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: machine.hasAlert ? statusColor : AppColors.neutralBorder,
+          color: machine.hasAlert ? statusColor.withValues(alpha: 0.6) : AppColors.neutralBorder,
           width: machine.hasAlert ? 1.5 : 1.0,
         ),
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(8),
         onTap: () {
+          // Requirement 4: Tap card to navigate to detailed Machine Diagnostics screen
           if (widget.onNavigateToDiagnostics != null) {
             widget.onNavigateToDiagnostics!(machine.assetId);
           } else {
@@ -265,9 +420,28 @@ class _FleetDashboardScreenState extends State<FleetDashboardScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Header: Thumbnail + Make/Model + Serial + Live Status Badge
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Machine Thumbnail Icon
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceCardElevated,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: AppColors.neutralBorder),
+                    ),
+                    child: const Icon(
+                      Icons.precision_manufacturing_outlined,
+                      size: 24,
+                      color: AppColors.cyanAccent,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+
+                  // Make, Model & Serial
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -275,19 +449,24 @@ class _FleetDashboardScreenState extends State<FleetDashboardScreen> {
                         Text(
                           machine.machineName,
                           style: const TextStyle(
-                            fontSize: 16,
+                            fontSize: 15,
                             fontWeight: FontWeight.bold,
                             color: AppColors.ledgerWhite,
                           ),
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          machine.category,
-                          style: const TextStyle(fontSize: 12, color: AppColors.ledgerMuted),
+                          '${machine.category} • SN: ${machine.assetId}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.ledgerMuted,
+                          ),
                         ),
                       ],
                     ),
                   ),
+
+                  // Live Status Badge: "Optimal", "Warning", or "Critical"
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
@@ -295,69 +474,120 @@ class _FleetDashboardScreenState extends State<FleetDashboardScreen> {
                       borderRadius: BorderRadius.circular(4),
                       border: Border.all(color: statusColor),
                     ),
-                    child: Text(
-                      statusText,
-                      style: TextStyle(
-                        color: statusColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 11,
-                      ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircleAvatar(radius: 3, backgroundColor: statusColor),
+                        const SizedBox(width: 4),
+                        Text(
+                          statusText,
+                          style: TextStyle(
+                            color: statusColor,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
                     ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+
+              // Real-Time Telemetry Pills: Hours, RPM, Temperature
+              Row(
+                children: [
+                  _buildTelemetryPill(
+                    icon: Icons.timer_outlined,
+                    label: '$hoursFormatted hrs',
+                    color: AppColors.ledgerWhite,
+                  ),
+                  const SizedBox(width: 8),
+                  _buildTelemetryPill(
+                    icon: Icons.rotate_right,
+                    label: '$rpmFormatted RPM',
+                    color: AppColors.cyanAccent,
+                  ),
+                  const SizedBox(width: 8),
+                  _buildTelemetryPill(
+                    icon: Icons.thermostat_outlined,
+                    label: '${machine.temperatureCelsius.toStringAsFixed(1)}°C',
+                    color: machine.temperatureCelsius >= 75.0
+                        ? AppColors.industrialAmber
+                        : AppColors.performanceGreen,
                   ),
                 ],
               ),
               const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Hours: ${machine.runningHours.toStringAsFixed(1)} hrs',
-                    style: const TextStyle(fontSize: 12, color: AppColors.ledgerWhite),
-                  ),
-                  Text(
-                    'Temp: ${machine.temperatureCelsius.toStringAsFixed(1)}°C',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: machine.temperatureCelsius >= 75.0
-                          ? AppColors.industrialAmber
-                          : AppColors.performanceGreen,
-                    ),
-                  ),
-                  Text(
-                    'Billing: \$$billingDollars/mo',
-                    style: const TextStyle(fontSize: 12, color: AppColors.cyanAccent),
-                  ),
-                ],
-              ),
-              if (machine.hasAlert) ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: AppColors.industrialAmber.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.info_outline, size: 14, color: AppColors.industrialAmber),
-                      SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          'Schedule covered warranty service >',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.industrialAmber,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+
+              // Next ACH Auto-Debit Date and Scheduled Amount
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceCardElevated.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(6),
                 ),
-              ],
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.calendar_today_outlined, size: 13, color: AppColors.ledgerMuted),
+                        SizedBox(width: 6),
+                        Text(
+                          'Next ACH Auto-Debit: Nov 15',
+                          style: TextStyle(fontSize: 11, color: AppColors.ledgerMuted),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      '\$$billingDollars / mo',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.performanceGreen,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTelemetryPill({
+    required IconData icon,
+    required String label,
+    required Color color,
+  }) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceCardElevated,
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: AppColors.neutralBorder),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 12, color: color),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ),
       ),
     );
