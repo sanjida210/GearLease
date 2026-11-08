@@ -1,8 +1,10 @@
+import '../../../../core/error/failures.dart';
+import '../../../../core/utils/result.dart';
 import '../entities/user_session.dart';
 
 abstract class AuthRepository {
-  Future<UserSession?> getCurrentSession();
-  Future<UserSession> loginWithCredentials(String email, String password);
-  Future<bool> authenticateWithBiometrics();
-  Future<void> logout();
+  Future<Result<UserSession, Failure>> loginWithCredentials(String email, String password);
+  Future<Result<UserSession, Failure>> authenticateWithBiometrics();
+  Future<Result<void, Failure>> logout();
+  Future<Result<UserSession?, Failure>> getActiveSession();
 }
