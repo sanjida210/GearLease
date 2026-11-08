@@ -10,6 +10,7 @@ import '../../features/auth/data/datasources/auth_remote_datasource.dart';
 import '../../features/auth/data/datasources/biometric_local_datasource.dart';
 import '../../features/auth/data/repositories/auth_repository_impl.dart';
 import '../../features/auth/domain/repositories/auth_repository.dart';
+import '../../features/auth/presentation/bloc/auth_bloc.dart';
 
 final sl = GetIt.instance;
 
@@ -82,6 +83,11 @@ void initAuthDependencies() {
         biometricDataSource: sl<BiometricLocalDataSource>(),
         storageService: sl<SecureStorageService>(),
       ),
+    );
+  }
+  if (!sl.isRegistered<AuthBloc>()) {
+    sl.registerFactory<AuthBloc>(
+      () => AuthBloc(authRepository: sl<AuthRepository>()),
     );
   }
 }
