@@ -30,6 +30,10 @@ import '../../features/offline_sync/data/datasources/sync_local_datasource.dart'
 import '../../features/offline_sync/data/repositories/sync_repository_impl.dart';
 import '../../features/offline_sync/domain/repositories/sync_repository.dart';
 import '../../features/offline_sync/presentation/bloc/sync_bloc.dart';
+import '../../features/gear_relay/data/repositories/gear_relay_repository_impl.dart';
+import '../../features/gear_relay/data/services/image_compression_service.dart';
+import '../../features/gear_relay/domain/repositories/gear_relay_repository.dart';
+import '../../features/gear_relay/presentation/bloc/gear_relay_bloc.dart';
 
 final sl = GetIt.instance;
 
@@ -236,7 +240,26 @@ void initOfflineSyncDependencies() {
 
 /// Feature DI: GearRelay 4-Angle Return Inspection
 void initGearRelayDependencies() {
-  // Camera return tools & image compression
+  if (!sl.isRegistered<ImageCompressionService>()) {
+    sl.registerLazySingleton<ImageCompressionService>(
+      () => ImageCompressionServiceImpl(),
+    );
+  }
+  if (!sl.isRegistered<GearRelayRepository>()) {
+    sl.registerLazySingleton<GearRelayRepository>(
+      () => GearRelayRepositoryImpl(
+        apiClient: sl<ApiClient>(),
+        databaseHelper: sl<DatabaseHelper>(),
+        networkInfo: sl<NetworkInfo>(),
+        compressionService: sl<ImageCompressionService>(),
+      ),
+    );
+  }
+  if (!sl.isRegistered<GearRelayBloc>()) {
+    sl.registerFactory<GearRelayBloc>(
+      () => GearRelayBloc(repository: sl<GearRelayRepository>()),
+    );
+  }
 }
 
 /// Test Hook: Resets GetIt instance for clean test execution
