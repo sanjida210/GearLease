@@ -101,7 +101,10 @@ class _SignaturePadModalState extends State<SignaturePadModal> {
     // 1. Export vector bytes to PNG
     Uint8List pngBytes = Uint8List(0);
     try {
-      final exported = await _controller.toPngBytes();
+      final exported = await _controller.toPngBytes().timeout(
+            const Duration(milliseconds: 250),
+            onTimeout: () => null,
+          );
       if (exported != null && exported.isNotEmpty) {
         pngBytes = exported;
       }
@@ -289,23 +292,27 @@ class _SignaturePadModalState extends State<SignaturePadModal> {
                       height: 200,
                     ),
                     if (state is SignatureInitial || _controller.isEmpty)
-                      Center(
-                        child: Text(
-                          'Sign within the frame using your finger or stylus',
-                          style: GoogleFonts.inter(
-                            color: AppColors.ledgerMuted.withValues(alpha: 0.5),
-                            fontSize: 12,
+                      IgnorePointer(
+                        child: Center(
+                          child: Text(
+                            'Sign within the frame using your finger or stylus',
+                            style: GoogleFonts.inter(
+                              color: AppColors.ledgerMuted.withValues(alpha: 0.5),
+                              fontSize: 12,
+                            ),
                           ),
                         ),
                       ),
                     Positioned(
                       bottom: 8,
                       left: 12,
-                      child: Text(
-                        'Vector stroke audit active (X, Y, P, timestamp)',
-                        style: GoogleFonts.inter(
-                          color: AppColors.ledgerMuted.withValues(alpha: 0.4),
-                          fontSize: 10,
+                      child: IgnorePointer(
+                        child: Text(
+                          'Vector stroke audit active (X, Y, P, timestamp)',
+                          style: GoogleFonts.inter(
+                            color: AppColors.ledgerMuted.withValues(alpha: 0.4),
+                            fontSize: 10,
+                          ),
                         ),
                       ),
                     ),

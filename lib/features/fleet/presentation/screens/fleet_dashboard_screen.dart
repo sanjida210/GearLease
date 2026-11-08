@@ -517,9 +517,11 @@ class _FleetDashboardScreenState extends State<FleetDashboardScreen> {
                   _buildTelemetryPill(
                     icon: Icons.thermostat_outlined,
                     label: '${machine.temperatureCelsius.toStringAsFixed(1)}°C',
-                    color: machine.temperatureCelsius >= 75.0
-                        ? AppColors.industrialAmber
-                        : AppColors.performanceGreen,
+                    color: machine.temperatureCelsius >= 85.0
+                        ? AppColors.criticalRed
+                        : machine.temperatureCelsius >= 75.0
+                            ? AppColors.industrialAmber
+                            : AppColors.performanceGreen,
                   ),
                 ],
               ),
