@@ -9,24 +9,31 @@ class HardwareAsset extends Equatable {
   final String make;
   final String model;
   final String category;
-  final int initialValueCents;
-  final String? iotDeviceIdentifier;
+  final int msrpCents;
+  final String? iotDeviceId;
+  final Map<String, dynamic> specificationsMap;
   final String currentConditionRating;
 
   const HardwareAsset({
-    required this.id,
-    required this.vendorId,
+    this.id = '',
+    this.vendorId = '',
     required this.serialNumber,
-    required this.barcodePayload,
+    this.barcodePayload = '',
     this.barcodeSymbology = 'CODE_128',
     required this.make,
     required this.model,
     required this.category,
-    required this.initialValueCents,
-    this.iotDeviceIdentifier,
+    int? msrpCents,
+    int? initialValueCents,
+    String? iotDeviceId,
+    String? iotDeviceIdentifier,
+    this.specificationsMap = const {},
     this.currentConditionRating = 'GRADE_A',
-  });
+  })  : msrpCents = msrpCents ?? initialValueCents ?? 0,
+        iotDeviceId = iotDeviceId ?? iotDeviceIdentifier;
 
+  int get initialValueCents => msrpCents;
+  String? get iotDeviceIdentifier => iotDeviceId;
   String get displayName => '$make $model';
 
   @override
@@ -39,8 +46,9 @@ class HardwareAsset extends Equatable {
         make,
         model,
         category,
-        initialValueCents,
-        iotDeviceIdentifier,
+        msrpCents,
+        iotDeviceId,
+        specificationsMap,
         currentConditionRating,
       ];
 }

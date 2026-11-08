@@ -69,6 +69,29 @@ void main() {
 
       expect(testAsset, equals(assetA));
     });
+
+    test('supports Phase 11 fields: msrpCents, iotDeviceId, specificationsMap', () {
+      const asset = HardwareAsset(
+        serialNumber: 'SN-7788',
+        make: 'Synesso',
+        model: 'MVP Hydra 3-Group',
+        category: 'Espresso Machine',
+        msrpCents: 2850000,
+        iotDeviceId: 'IOT-DEV-999',
+        specificationsMap: {
+          'boilerCapacityLiters': 12.3,
+          'powerWatts': 5200,
+        },
+      );
+
+      expect(asset.serialNumber, 'SN-7788');
+      expect(asset.make, 'Synesso');
+      expect(asset.model, 'MVP Hydra 3-Group');
+      expect(asset.category, 'Espresso Machine');
+      expect(asset.msrpCents, 2850000);
+      expect(asset.iotDeviceId, 'IOT-DEV-999');
+      expect(asset.specificationsMap['powerWatts'], 5200);
+    });
   });
 
   group('QuoteCalculation Entity Tests', () {
@@ -78,6 +101,69 @@ void main() {
       expect(testQuote.termMonths, 36);
       expect(testQuote.floorCents, 45000);
       expect(testQuote.capCents, 110000);
+    });
+
+    test('supports Phase 11 PricingType and dynamic underwrite metrics', () {
+      const calc = QuoteCalculation(
+        termMonths: 48,
+        monthlyBaseCents: 65000,
+        revenueSharePercent: 4.5,
+        floorCents: 40000,
+        capCents: 95000,
+        riskTier: 'LOW',
+        estimatedUnderwriteSeconds: 15,
+        pricingType: PricingType.REVENUE_INDEXED,
+      );
+
+      expect(calc.termMonths, 48);
+      expect(calc.monthlyBaseCents, 65000);
+      expect(calc.revenueSharePercent, 4.5);
+      expect(calc.floorCents, 40000);
+      expect(calc.capCents, 95000);
+      expect(calc.riskTier, 'LOW');
+      expect(calc.estimatedUnderwriteSeconds, 15);
+      expect(calc.pricingType, PricingType.REVENUE_INDEXED);
+      expect(PricingType.values, containsAll([
+        PricingType.FIXED_ANNUITY,
+        PricingType.REVENUE_INDEXED,
+        PricingType.PAY_PER_USE,
+      ]));
+    });
+  });
+
+  group('QuoteRepository Contract Tests (Phase 11)', () {
+    test('lookupAssetByBarcode returns Result<HardwareAsset, Failure>', () async {
+      const asset = HardwareAsset(
+        serialNumber: 'SN-7788',
+        make: 'Synesso',
+        model: 'MVP Hydra 3-Group',
+        category: 'Espresso Machine',
+        msrpCents: 2850000,
+      );
+      when(() => mockRepository.lookupAssetByBarcode('GL-BARCODE-123'))
+          .thenAnswer((_) async => Result.success(asset));
+
+      final result = await mockRepository.lookupAssetByBarcode('GL-BARCODE-123');
+
+      expect(result.isSuccess, isTrue);
+      expect(result.dataOrNull?.serialNumber, 'SN-7788');
+      verify(() => mockRepository.lookupAssetByBarcode('GL-BARCODE-123')).called(1);
+    });
+
+    test('calculateDynamicQuote returns Result<QuoteCalculation, Failure>', () async {
+      const calc = QuoteCalculation(
+        termMonths: 36,
+        monthlyBaseCents: 75000,
+        pricingType: PricingType.FIXED_ANNUITY,
+      );
+      when(() => mockRepository.calculateDynamicQuote('ast-001', 36, PricingType.FIXED_ANNUITY, 123456789))
+          .thenAnswer((_) async => Result.success(calc));
+
+      final result = await mockRepository.calculateDynamicQuote('ast-001', 36, PricingType.FIXED_ANNUITY, 123456789);
+
+      expect(result.isSuccess, isTrue);
+      expect(result.dataOrNull?.monthlyBaseCents, 75000);
+      verify(() => mockRepository.calculateDynamicQuote('ast-001', 36, PricingType.FIXED_ANNUITY, 123456789)).called(1);
     });
   });
 

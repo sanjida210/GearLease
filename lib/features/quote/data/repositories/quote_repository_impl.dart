@@ -21,6 +21,10 @@ class QuoteRepositoryImpl implements QuoteRepository {
   });
 
   @override
+  Future<Result<HardwareAsset, Failure>> lookupAssetByBarcode(String barcode) =>
+      getAssetByBarcode(barcode);
+
+  @override
   Future<Result<HardwareAsset, Failure>> getAssetByBarcode(String barcode) async {
     final isOnline = await networkInfo.isConnected;
 
@@ -52,6 +56,23 @@ class QuoteRepositoryImpl implements QuoteRepository {
         const NetworkFailure('Device is offline and asset is not cached locally.'),
       );
     }
+  }
+
+  @override
+  Future<Result<QuoteCalculation, Failure>> calculateDynamicQuote(
+    String assetId,
+    int termMonths,
+    PricingType pricingType,
+    int businessEin,
+  ) {
+    return calculateQuickQuote(
+      barcode: assetId,
+      vendorOrgId: 'default-org',
+      invoiceAmountCents: 2450000,
+      requestedTermMonths: termMonths,
+      repaymentType: pricingType.toRepaymentStructureType(),
+      businessEin: businessEin.toString(),
+    );
   }
 
   @override

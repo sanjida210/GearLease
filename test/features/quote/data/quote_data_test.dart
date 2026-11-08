@@ -259,5 +259,35 @@ void main() {
       expect(result.dataOrNull?.repaymentType, RepaymentStructureType.REVENUE_INDEXED);
       expect(result.dataOrNull?.fixedMonthlyCents, greaterThan(0));
     });
+
+    test('lookupAssetByBarcode delegates to barcode lookup and caches locally', () async {
+      when(() => mockNetworkInfo.isConnected).thenAnswer((_) async => true);
+      when(() => mockDio.get(any())).thenAnswer((_) async => Response(
+            requestOptions: RequestOptions(path: '/api/v1/mobile/assets/barcode/GL-ROAST-2026-9811'),
+            statusCode: 200,
+            data: sampleAssetJson,
+          ));
+      when(() => mockDbHelper.upsertOfflineAsset(any())).thenAnswer((_) async => 1);
+
+      final result = await quoteRepository.lookupAssetByBarcode('GL-ROAST-2026-9811');
+
+      expect(result.isSuccess, isTrue);
+      expect(result.dataOrNull?.serialNumber, 'LM-2026-9811');
+    });
+
+    test('calculateDynamicQuote returns dynamic quote calculation', () async {
+      when(() => mockNetworkInfo.isConnected).thenAnswer((_) async => false);
+
+      final result = await quoteRepository.calculateDynamicQuote(
+        'GL-ROAST-2026-9811',
+        48,
+        PricingType.REVENUE_INDEXED,
+        123456789,
+      );
+
+      expect(result.isSuccess, isTrue);
+      expect(result.dataOrNull?.termMonths, 48);
+      expect(result.dataOrNull?.pricingType, PricingType.REVENUE_INDEXED);
+    });
   });
 }
