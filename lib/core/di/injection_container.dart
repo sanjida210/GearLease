@@ -26,6 +26,10 @@ import '../../features/telemetry/data/datasources/telemetry_ws_datasource.dart';
 import '../../features/telemetry/data/repositories/telemetry_repository_impl.dart';
 import '../../features/telemetry/domain/repositories/telemetry_repository.dart';
 import '../../features/telemetry/presentation/bloc/telemetry_bloc.dart';
+import '../../features/offline_sync/data/datasources/sync_local_datasource.dart';
+import '../../features/offline_sync/data/repositories/sync_repository_impl.dart';
+import '../../features/offline_sync/domain/repositories/sync_repository.dart';
+import '../../features/offline_sync/presentation/bloc/sync_bloc.dart';
 
 final sl = GetIt.instance;
 
@@ -209,7 +213,25 @@ void initTelemetryDependencies() {
 
 /// Feature DI: Offline-First Queue & Sync Engine
 void initOfflineSyncDependencies() {
-  // Sync queue worker & conflict resolution
+  if (!sl.isRegistered<SyncLocalDataSource>()) {
+    sl.registerLazySingleton<SyncLocalDataSource>(
+      () => SyncLocalDataSourceImpl(databaseHelper: sl<DatabaseHelper>()),
+    );
+  }
+  if (!sl.isRegistered<SyncRepository>()) {
+    sl.registerLazySingleton<SyncRepository>(
+      () => SyncRepositoryImpl(
+        localDataSource: sl<SyncLocalDataSource>(),
+        apiClient: sl<ApiClient>(),
+        networkInfo: sl<NetworkInfo>(),
+      ),
+    );
+  }
+  if (!sl.isRegistered<SyncBloc>()) {
+    sl.registerFactory<SyncBloc>(
+      () => SyncBloc(syncRepository: sl<SyncRepository>()),
+    );
+  }
 }
 
 /// Feature DI: GearRelay 4-Angle Return Inspection
