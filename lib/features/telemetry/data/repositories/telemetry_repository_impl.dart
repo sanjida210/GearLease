@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
+import 'package:rxdart/rxdart.dart';
 import 'package:uuid/uuid.dart';
 import '../../../../core/error/failures.dart';
 import '../../../../core/network/api_client.dart';
@@ -35,8 +37,16 @@ class TelemetryRepositoryImpl implements TelemetryRepository {
       }
     } catch (_) {}
 
-    // 2. Stream live updates from WebSocket
-    await for (final model in wsDataSource.streamMachineTelemetry(assetId)) {
+    // 2. Stream live updates from WebSocket throttled with RxDart
+    final throttledStream = wsDataSource
+        .streamMachineTelemetry(assetId)
+        .throttleTime(
+          const Duration(milliseconds: 750),
+          leading: true,
+          trailing: true,
+        );
+
+    await for (final model in throttledStream) {
       try {
         await databaseHelper.upsertTelemetry(model.toDbMap());
       } catch (_) {}
@@ -47,6 +57,42 @@ class TelemetryRepositoryImpl implements TelemetryRepository {
   @override
   Stream<List<MachineTelemetry>> watchFleetTelemetry() {
     return wsDataSource.streamFleetTelemetry();
+  }
+
+  @override
+  Stream<MachineTelemetry> generateMockTelemetryStream(
+    String assetId, {
+    Duration period = const Duration(seconds: 1),
+  }) {
+    final random = math.Random();
+    return Stream.periodic(period, (count) {
+      final rpm = 1400.0 + random.nextInt(120) + (count % 10) * 8.0;
+      final temp = 70.0 + (random.nextDouble() * 10.0);
+      final vibration = 0.35 + (random.nextDouble() * 0.3);
+
+      final MachineStatus status;
+      if (temp >= 85.0 || vibration >= 1.0) {
+        status = MachineStatus.fault;
+      } else if (temp >= 75.0 || vibration >= 0.6) {
+        status = MachineStatus.warning;
+      } else {
+        status = MachineStatus.optimal;
+      }
+
+      return MachineTelemetryModel(
+        assetId: assetId,
+        machineName: 'Equipment #$assetId',
+        category: 'Heavy Equipment',
+        runningHours: 1248.5 + (count * 0.1),
+        temperatureCelsius: double.parse(temp.toStringAsFixed(1)),
+        motorRpm: double.parse(rpm.toStringAsFixed(1)),
+        vibrationG: double.parse(vibration.toStringAsFixed(2)),
+        status: status,
+        currentBillingCents: 112000,
+        billingType: 'Revenue-Indexed',
+        timestamp: DateTime.now(),
+      );
+    });
   }
 
   @override

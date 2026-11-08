@@ -8,10 +8,12 @@ class MachineTelemetryModel extends MachineTelemetry {
     required super.runningHours,
     required super.temperatureCelsius,
     required super.motorRpm,
+    super.vibrationG,
     required super.status,
     required super.currentBillingCents,
     required super.billingType,
     required super.timestamp,
+    super.lastHeartbeat,
   });
 
   factory MachineTelemetryModel.fromJson(Map<String, dynamic> json) {
@@ -33,6 +35,7 @@ class MachineTelemetryModel extends MachineTelemetry {
       runningHours: (json['running_hours'] as num? ?? json['runningHours'] as num? ?? json['hours'] as num? ?? 0.0).toDouble(),
       temperatureCelsius: (json['temperature_celsius'] as num? ?? json['temperatureCelsius'] as num? ?? json['temp_celsius'] as num? ?? 0.0).toDouble(),
       motorRpm: (json['motor_rpm'] as num? ?? json['motorRpm'] as num? ?? json['rpm'] as num? ?? 0.0).toDouble(),
+      vibrationG: (json['vibration_g'] as num? ?? json['vibrationG'] as num? ?? 0.0).toDouble(),
       status: parseStatus(json['status']),
       currentBillingCents: (json['current_billing_cents'] as num? ?? json['currentBillingCents'] as num? ?? 0).toInt(),
       billingType: json['billing_type'] as String? ?? json['billingType'] as String? ?? 'Fixed Lease',
@@ -41,6 +44,9 @@ class MachineTelemetryModel extends MachineTelemetry {
           : (json['recorded_at'] != null
               ? DateTime.fromMillisecondsSinceEpoch(json['recorded_at'] as int)
               : DateTime.now()),
+      lastHeartbeat: json['last_heartbeat'] != null
+          ? DateTime.tryParse(json['last_heartbeat'] as String)
+          : null,
     );
   }
 

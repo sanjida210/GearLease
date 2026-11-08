@@ -203,7 +203,10 @@ void initSignatureDependencies() {
 void initTelemetryDependencies({bool enableHeartbeat = true}) {
   if (!sl.isRegistered<TelemetryWsDataSource>()) {
     sl.registerLazySingleton<TelemetryWsDataSource>(
-      () => TelemetryWsDataSourceImpl(enableHeartbeat: enableHeartbeat),
+      () => TelemetryWsDataSourceImpl(
+        enableHeartbeat: enableHeartbeat,
+        enableReconnect: enableHeartbeat,
+      ),
       dispose: (ds) => ds.dispose(),
     );
   }
