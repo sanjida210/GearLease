@@ -8,23 +8,45 @@ abstract class TelemetryEvent extends Equatable {
   List<Object?> get props => [];
 }
 
-class TelemetrySubscribeRequested extends TelemetryEvent {
+/// Dispatched to initiate real-time machine telematics streaming.
+class StartTelemetryStream extends TelemetryEvent {
   final String assetId;
 
-  const TelemetrySubscribeRequested(this.assetId);
+  const StartTelemetryStream(this.assetId);
 
   @override
   List<Object?> get props => [assetId];
 }
 
-class TelemetryDataUpdated extends TelemetryEvent {
+/// Dispatched when new telemetry data packet arrives from IoT broker.
+class TelemetryUpdated extends TelemetryEvent {
   final MachineTelemetry telemetry;
 
-  const TelemetryDataUpdated(this.telemetry);
+  const TelemetryUpdated(this.telemetry);
 
   @override
   List<Object?> get props => [telemetry];
 }
+
+/// Dispatched to stop and auto-unsubscribe from telematics stream.
+class StopTelemetryStream extends TelemetryEvent {
+  const StopTelemetryStream();
+}
+
+/// Dispatched when user acknowledges an active predictive alert.
+class AcknowledgeAlert extends TelemetryEvent {
+  final String alertId;
+
+  const AcknowledgeAlert(this.alertId);
+
+  @override
+  List<Object?> get props => [alertId];
+}
+
+// --- Backward Compatibility Aliases & Secondary Events ---
+
+typedef TelemetrySubscribeRequested = StartTelemetryStream;
+typedef TelemetryDataUpdated = TelemetryUpdated;
 
 class TelemetryFleetSubscribeRequested extends TelemetryEvent {}
 

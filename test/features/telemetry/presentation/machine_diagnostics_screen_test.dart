@@ -55,9 +55,10 @@ void main() {
   group('MachineDiagnosticsScreen Widget Tests', () {
     testWidgets('renders machine details, metric tiles, and waveform chart', (tester) async {
       await tester.pumpWidget(createWidgetUnderTest(
-        TelemetryStreaming(
-          latest: testTelemetry,
-          history: [testTelemetry],
+        TelemetryLive(
+          testTelemetry,
+          const [],
+          [testTelemetry],
         ),
       ));
       await tester.pump();
@@ -73,9 +74,10 @@ void main() {
 
     testWidgets('renders alert banner and schedules service on button tap', (tester) async {
       await tester.pumpWidget(createWidgetUnderTest(
-        TelemetryStreaming(
-          latest: testTelemetry,
-          history: [testTelemetry],
+        TelemetryLive(
+          testTelemetry,
+          const [],
+          [testTelemetry],
         ),
       ));
       await tester.pump();

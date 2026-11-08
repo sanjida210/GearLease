@@ -20,10 +20,24 @@ class MachineDiagnosticsScreen extends StatefulWidget {
 }
 
 class _MachineDiagnosticsScreenState extends State<MachineDiagnosticsScreen> {
+  late TelemetryBloc _telemetryBloc;
+
   @override
   void initState() {
     super.initState();
-    context.read<TelemetryBloc>().add(TelemetrySubscribeRequested(widget.assetId));
+    context.read<TelemetryBloc>().add(StartTelemetryStream(widget.assetId));
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _telemetryBloc = context.read<TelemetryBloc>();
+  }
+
+  @override
+  void dispose() {
+    _telemetryBloc.add(const StopTelemetryStream());
+    super.dispose();
   }
 
   @override
@@ -70,7 +84,7 @@ class _MachineDiagnosticsScreenState extends State<MachineDiagnosticsScreen> {
       ),
       body: BlocConsumer<TelemetryBloc, TelemetryState>(
         listener: (context, state) {
-          if (state is TelemetryStreaming && state.serviceBookedSuccessfully) {
+          if (state is TelemetryLive && state.serviceBookedSuccessfully) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('Warranty service ticket dispatched. OEM technician assigned.'),
@@ -80,23 +94,23 @@ class _MachineDiagnosticsScreenState extends State<MachineDiagnosticsScreen> {
           }
         },
         builder: (context, state) {
-          if (state is TelemetryLoading) {
+          if (state is TelemetryConnecting) {
             return const Center(
               child: CircularProgressIndicator(color: AppColors.precisionCyan),
             );
           }
 
-          if (state is TelemetryError) {
+          if (state is TelemetryFault) {
             return Center(
               child: Text(
-                state.message,
+                state.error,
                 style: const TextStyle(color: AppColors.criticalRed),
               ),
             );
           }
 
-          if (state is TelemetryStreaming && state.latest != null) {
-            final telemetry = state.latest!;
+          if (state is TelemetryLive) {
+            final telemetry = state.data;
             final history = state.history;
 
             return SingleChildScrollView(
@@ -119,6 +133,44 @@ class _MachineDiagnosticsScreenState extends State<MachineDiagnosticsScreen> {
                   // Alert Banner & Booking CTA
                   if (telemetry.hasAlert)
                     _buildAlertBanner(context, telemetry, state.isBookingService),
+                ],
+              ),
+            );
+          }
+
+          if (state is TelemetryOffline) {
+            final telemetry = state.cachedData;
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceCardElevated,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: AppColors.industrialAmber),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.cloud_off, size: 16, color: AppColors.industrialAmber),
+                        SizedBox(width: 8),
+                        Text(
+                          'OFFLINE CACHE — DISPLAYING LAST KNOWN TELEMETRY',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.industrialAmber,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _buildMachineHeader(telemetry),
+                  const SizedBox(height: 16),
+                  _buildMetricsRow(telemetry),
                 ],
               ),
             );

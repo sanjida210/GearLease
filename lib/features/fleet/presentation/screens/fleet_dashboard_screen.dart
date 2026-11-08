@@ -57,8 +57,8 @@ class _FleetDashboardScreenState extends State<FleetDashboardScreen> {
           }
 
           List<MachineTelemetry> fleet = [];
-          if (state is TelemetryStreaming) {
-            fleet = state.fleet.isNotEmpty ? state.fleet : (state.latest != null ? [state.latest!] : []);
+          if (state is TelemetryLive) {
+            fleet = state.fleet.isNotEmpty ? state.fleet : [state.data];
           }
 
           return SingleChildScrollView(

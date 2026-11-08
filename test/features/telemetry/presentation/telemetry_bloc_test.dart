@@ -1,5 +1,6 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gearlease/core/utils/result.dart';
 import 'package:gearlease/features/telemetry/domain/entities/machine_telemetry.dart';
 import 'package:gearlease/features/telemetry/domain/repositories/telemetry_repository.dart';
 import 'package:gearlease/features/telemetry/presentation/bloc/telemetry_bloc.dart';
@@ -43,24 +44,25 @@ void main() {
     });
 
     blocTest<TelemetryBloc, TelemetryState>(
-      'subscribes to machine stream and emits TelemetryLoading then TelemetryStreaming',
+      'subscribes to machine stream and emits TelemetryConnecting then TelemetryLive',
       build: () {
+        when(() => mockRepository.getActiveAlerts('ast_probat12'))
+            .thenAnswer((_) async => Result.success(const []));
         when(() => mockRepository.watchMachineTelemetry('ast_probat12'))
             .thenAnswer((_) => Stream.value(testTelemetry));
         return telemetryBloc;
       },
-      act: (bloc) => bloc.add(const TelemetrySubscribeRequested('ast_probat12')),
+      act: (bloc) => bloc.add(const StartTelemetryStream('ast_probat12')),
       expect: () => [
-        TelemetryLoading(),
-        TelemetryStreaming(
-          latest: testTelemetry,
-          history: [testTelemetry],
-        ),
+        isA<TelemetryConnecting>(),
+        isA<TelemetryLive>()
+            .having((s) => s.data.assetId, 'data.assetId', 'ast_probat12')
+            .having((s) => s.history.length, 'history.length', 1),
       ],
     );
 
     blocTest<TelemetryBloc, TelemetryState>(
-      'subscribes to fleet stream and emits TelemetryLoading then TelemetryStreaming with fleet',
+      'subscribes to fleet stream and emits TelemetryConnecting then TelemetryLive with fleet',
       build: () {
         when(() => mockRepository.watchFleetTelemetry())
             .thenAnswer((_) => Stream.value([testTelemetry]));
@@ -68,21 +70,20 @@ void main() {
       },
       act: (bloc) => bloc.add(TelemetryFleetSubscribeRequested()),
       expect: () => [
-        TelemetryLoading(),
-        TelemetryStreaming(
-          fleet: [testTelemetry],
-          latest: testTelemetry,
-          history: [testTelemetry],
-        ),
+        isA<TelemetryConnecting>(),
+        isA<TelemetryLive>()
+            .having((s) => s.fleet.length, 'fleet.length', 1)
+            .having((s) => s.data.assetId, 'data.assetId', 'ast_probat12'),
       ],
     );
 
     blocTest<TelemetryBloc, TelemetryState>(
       'emits updated history on consecutive TelemetryDataUpdated events',
       build: () => telemetryBloc,
-      seed: () => TelemetryStreaming(
-        latest: testTelemetry,
-        history: [testTelemetry],
+      seed: () => TelemetryLive(
+        testTelemetry,
+        const [],
+        [testTelemetry],
       ),
       act: (bloc) {
         final update = MachineTelemetry(
@@ -97,12 +98,12 @@ void main() {
           billingType: 'Revenue-Indexed',
           timestamp: DateTime.parse('2026-11-04T10:31:00Z'),
         );
-        bloc.add(TelemetryDataUpdated(update));
+        bloc.add(TelemetryUpdated(update));
       },
       verify: (bloc) {
-        final state = bloc.state as TelemetryStreaming;
+        final state = bloc.state as TelemetryLive;
         expect(state.history.length, 2);
-        expect(state.latest?.temperatureCelsius, 79.5);
+        expect(state.latest.temperatureCelsius, 79.5);
       },
     );
 
@@ -113,27 +114,22 @@ void main() {
             .thenAnswer((_) async => true);
         return telemetryBloc;
       },
-      seed: () => TelemetryStreaming(
-        latest: testTelemetry,
-        history: [testTelemetry],
+      seed: () => TelemetryLive(
+        testTelemetry,
+        const [],
+        [testTelemetry],
       ),
       act: (bloc) => bloc.add(const TelemetryScheduleServiceRequested(
         assetId: 'ast_probat12',
         notes: 'High temp alert',
       )),
       expect: () => [
-        TelemetryStreaming(
-          latest: testTelemetry,
-          history: [testTelemetry],
-          isBookingService: true,
-          serviceBookedSuccessfully: false,
-        ),
-        TelemetryStreaming(
-          latest: testTelemetry,
-          history: [testTelemetry],
-          isBookingService: false,
-          serviceBookedSuccessfully: true,
-        ),
+        isA<TelemetryLive>()
+            .having((s) => s.isBookingService, 'isBookingService', true)
+            .having((s) => s.serviceBookedSuccessfully, 'serviceBookedSuccessfully', false),
+        isA<TelemetryLive>()
+            .having((s) => s.isBookingService, 'isBookingService', false)
+            .having((s) => s.serviceBookedSuccessfully, 'serviceBookedSuccessfully', true),
       ],
     );
   });
